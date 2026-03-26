@@ -108,17 +108,27 @@ def get_games_data(season: int = 2026) -> pd.DataFrame:
     df = load_features()
     if df.empty:
         return pd.DataFrame()
-    return df[df["season"] == season].groupby("game_id").first().reset_index()[
-        ["game_id", "date", "opponent", "opponent_tier", "is_rivalry",
-         "is_marquee", "is_baja_cup", "target_demand_index", "secondary_premium_pct",
-         "total_revenue_opportunity", "market_health", "backlash_risk_score",
-         "is_hot_market_alert", "is_season_opener", "is_decision_day"]
-    ].rename(columns={
+    grouped = df[df["season"] == season].groupby("game_id").first().reset_index()
+    # Normalize column names — parquet uses g-prefixed feature names
+    col_map = {
+        "g2_opponent_tier":  "opponent_tier",
+        "g2_is_rivalry":     "is_rivalry",
+        "g2_is_marquee":     "is_marquee",
+        "g1_is_baja_cup":    "is_baja_cup",
+        "g1_is_season_opener": "is_season_opener",
+        "g1_is_decision_day":  "is_decision_day",
         "target_demand_index": "demand_index",
-        "market_health": "market_health_dominant",
+        "market_health":       "market_health_dominant",
         "backlash_risk_score": "backlash_risk_max",
         "is_hot_market_alert": "is_hot_market",
-    })
+    }
+    grouped = grouped.rename(columns=col_map)
+    want = ["game_id", "date", "opponent", "opponent_tier", "is_rivalry",
+            "is_marquee", "is_baja_cup", "demand_index", "secondary_premium_pct",
+            "total_revenue_opportunity", "market_health_dominant", "backlash_risk_max",
+            "is_hot_market", "is_season_opener", "is_decision_day"]
+    available = [c for c in want if c in grouped.columns]
+    return grouped[available]
 
 
 @st.cache_data(ttl=60)
