@@ -526,10 +526,11 @@ def render_seat_map():
 
         if has_data:
             pchg = d.get("price_change_pct", 0)
-            if pchg > 15:   fill = "#EF4444"   # bright red — raise 15%+
-            elif pchg > 5:  fill = "#F59E0B"   # amber — raise 5-15%
-            elif pchg < -5: fill = "#3B82F6"   # blue — consider reducing
-            else:           fill = "#10B981"   # emerald — at optimal
+            if pchg > 15:       fill = "#1E3A8A"   # deep navy  — price increase recommended
+            elif pchg > 5:      fill = "#93C5FD"   # light blue — slight increase recommended
+            elif pchg < -15:    fill = "#DC2626"   # red        — price decrease recommended
+            elif pchg < -5:     fill = "#FCA5A5"   # light pink — slight decrease recommended
+            else:               fill = "#F1F5F9"   # off-white  — no change recommended
         else:
             fill = TIER_FILL.get(tier, "#9CA3AF")
 
@@ -545,10 +546,31 @@ def render_seat_map():
         pchg_v = d.get("price_change_pct", 0)
         health = d.get("market_health", "")
 
+        # $ range: recommended price ±4%
+        rng_lo = scen_p * 0.96
+        rng_hi = scen_p * 1.04
+
+        # Confidence 1–5 based on signal strength
+        ap = abs(pchg_v)
+        if ap < 3:    conf = 4   # clearly near optimal
+        elif ap < 6:  conf = 2
+        elif ap < 10: conf = 3
+        elif ap < 18: conf = 4
+        else:         conf = 5
+        conf_color = "#DC2626" if conf <= 2 else ("#FBBF24" if conf == 3 else "#10B981")
+
+        # Recommendation label
+        if pchg_v > 15:     rec_label = "Price increase recommended"
+        elif pchg_v > 5:    rec_label = "Slight price increase recommended"
+        elif pchg_v < -15:  rec_label = "Price decrease recommended"
+        elif pchg_v < -5:   rec_label = "Slight price decrease recommended"
+        else:               rec_label = "No change recommended"
+
         hover = (
             f"<b>Section {lbl.replace(chr(10), ' ')}</b><br>"
-            + (f"Current: ${face:.0f} | {scenario.title()}: ${scen_p:.0f} ({pchg_v:+.1f}%)<br>"
-               f"Market: {HEALTH_LABELS.get(health, health)} | "
+            + (f"Current: ${face:.0f} → Recommended: ${rng_lo:.0f}–${rng_hi:.0f}<br>"
+               f"{rec_label} ({pchg_v:+.1f}%)<br>"
+               f"Confidence: {'●' * conf}{'○' * (5 - conf)} {conf}/5 | "
                f"STH: {'✓' if d.get('sth_healthy', True) else '⚠ Risk'}"
                if has_data else tier)
         )
@@ -570,9 +592,11 @@ def render_seat_map():
         if sw > 0.09 and sh > 0.06:
             txt = f"${scen_p:.0f}" if has_data else lbl.split("\n")[0][:5]
             fsize = 9 if sw > 0.18 and sh > 0.18 else 7
+            # Light fills need dark text
+            txt_color = "#1F2937" if fill in ("#93C5FD", "#F1F5F9", "#FCA5A5") else "white"
             fig.add_annotation(
                 x=lx, y=ly, text=txt, showarrow=False,
-                font=dict(size=fsize, color="white", family="Arial Black"),
+                font=dict(size=fsize, color=txt_color, family="Arial Black"),
             )
 
     # ── Premium area named labels ────────────────────────────────────────────────
@@ -611,23 +635,40 @@ def render_seat_map():
     )
 
     # Legend
-    legend_items = [
-        ("#EF4444",                   "HOT — raise 15%+"),
-        ("#F59E0B",                   "WARM — raise 5-15%"),
-        ("#10B981",                   "HEALTHY — near optimal"),
-        ("#3B82F6",                   "COLD — consider reduction"),
-        (TIER_FILL["west_end"],       "Goal end"),
-        (TIER_FILL["south_side"],     "Sideline"),
-        (TIER_FILL["north_fc"],       "Field Club"),
-        (TIER_FILL["supporters_ga"],  "Supporters GA"),
+    # Recommendation legend items — (bg_color, text_color, label)
+    rec_legend = [
+        ("#1E3A8A", "white",   "Price increase recommended"),
+        ("#93C5FD", "#1F2937", "Slight price increase recommended"),
+        ("#F1F5F9", "#374151", "No change recommended"),
+        ("#FCA5A5", "#7F1D1D", "Slight price decrease recommended"),
+        ("#DC2626", "white",   "Price decrease recommended"),
     ]
-    legend_html = (
-        "<div style='display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px'>"
-        + "".join(
-            f'<span style="background:{c};color:white;padding:2px 8px;'
-            f'border-radius:3px;font-size:11px">{l}</span>'
-            for c, l in legend_items
+    tier_legend = [
+        (TIER_FILL["west_end"],      "white",   "Goal end"),
+        (TIER_FILL["south_side"],    "white",   "Sideline"),
+        (TIER_FILL["north_fc"],      "white",   "Field Club"),
+        (TIER_FILL["supporters_ga"], "white",   "Supporters GA"),
+    ]
+    conf_legend = [
+        ("#DC2626", "white",   "Confidence 1–2"),
+        ("#FBBF24", "#1F2937", "Confidence 3"),
+        ("#10B981", "white",   "Confidence 4–5"),
+    ]
+
+    def _legend_pills(items):
+        return "".join(
+            f'<span style="background:{bg};color:{tc};padding:2px 10px;'
+            f'border-radius:3px;font-size:11px;border:1px solid rgba(0,0,0,0.1)">{l}</span>'
+            for bg, tc, l in items
         )
+
+    legend_html = (
+        "<div style='display:flex;flex-wrap:wrap;gap:5px;margin-bottom:4px'>"
+        + _legend_pills(rec_legend) + "</div>"
+        "<div style='display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px'>"
+        + _legend_pills(tier_legend)
+        + "<span style='margin-left:12px;color:#888;font-size:11px;align-self:center'>Confidence:</span>"
+        + _legend_pills(conf_legend)
         + "</div>"
     )
     st.markdown(legend_html, unsafe_allow_html=True)
@@ -640,12 +681,56 @@ def render_seat_map():
 
     if selected_section and selected_section in section_data:
         d = section_data[selected_section]
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Current Price", f"${d['face_price']:.0f}")
-        c2.metric(f"{scenario.title()} Price", f"${d['scenario_price']:.0f}",
-                  delta=f"{d['price_change_pct']:+.1f}%")
+        face   = d["face_price"]
+        scen_p = d["scenario_price"]
+        pchg_v = d["price_change_pct"]
+        rng_lo = scen_p * 0.96
+        rng_hi = scen_p * 1.04
+
+        # Confidence
+        ap = abs(pchg_v)
+        if ap < 3:    conf = 4
+        elif ap < 6:  conf = 2
+        elif ap < 10: conf = 3
+        elif ap < 18: conf = 4
+        else:         conf = 5
+        conf_color = "#DC2626" if conf <= 2 else ("#FBBF24" if conf == 3 else "#10B981")
+
+        if pchg_v > 15:     rec_label = "Price increase recommended"
+        elif pchg_v > 5:    rec_label = "Slight price increase recommended"
+        elif pchg_v < -15:  rec_label = "Price decrease recommended"
+        elif pchg_v < -5:   rec_label = "Slight price decrease recommended"
+        else:               rec_label = "No change recommended"
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Current Price", f"${face:.0f}")
+        c2.metric("Recommended Range", f"${rng_lo:.0f}–${rng_hi:.0f}",
+                  delta=f"{pchg_v:+.1f}%")
         c3.metric("STH Resale", "✓ Healthy" if d["sth_healthy"] else "⚠ Risk",
                   delta_color="off")
+        c4.markdown(
+            f"**Confidence**<br>"
+            f'<span style="font-size:22px;color:{conf_color}">'
+            f"{'●' * conf}{'○' * (5 - conf)}</span> "
+            f'<span style="color:{conf_color};font-weight:700">{conf}/5</span>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f'<div style="background:#1E3A8A;color:white;padding:8px 14px;'
+            f'border-radius:6px;font-weight:600;margin-top:4px">{rec_label}</div>',
+            unsafe_allow_html=True,
+        ) if pchg_v > 5 else (
+            st.markdown(
+                f'<div style="background:#DC2626;color:white;padding:8px 14px;'
+                f'border-radius:6px;font-weight:600;margin-top:4px">{rec_label}</div>',
+                unsafe_allow_html=True,
+            ) if pchg_v < -5 else
+            st.markdown(
+                f'<div style="background:#F1F5F9;color:#374151;padding:8px 14px;'
+                f'border:1px solid #CBD5E1;border-radius:6px;font-weight:600;margin-top:4px">{rec_label}</div>',
+                unsafe_allow_html=True,
+            )
+        )
 
         if d.get("explanation"):
             st.info(f"**AI Insight:** {d['explanation']}")
