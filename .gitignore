@@ -4,5 +4,6 @@ __pycache__/
 mlflow/
 data/raw/
 data/processed/
-data/features/
+data/features/*.csv
+# data/features/demand_features.parquet is committed for cloud deployment
 data/*.duckdb
