@@ -405,13 +405,24 @@ def _build_stadium_svg(section_data: dict, scenario: str, game_label: str) -> st
     def sec_fill(grp, tier):
         d = section_data.get(grp, {})
         if not d:
-            return TIER_DEFAULT.get(tier, "#6B7280")
+            return "#2D3748"   # uniform dark slate for all no-data sections
         p = d.get("price_change_pct", 0)
-        if p > 15:  return "#1E3A8A"
-        if p > 5:   return "#60A5FA"
-        if p < -15: return "#DC2626"
-        if p < -5:  return "#FCA5A5"
-        return "#E8EDF5"
+        if p > 15:  return "#1E3A8A"   # deep navy  — raise price
+        if p > 5:   return "#60A5FA"   # light blue — slight raise
+        if p < -15: return "#DC2626"   # red        — lower price
+        if p < -5:  return "#FCA5A5"   # light pink — slight lower
+        return "#E8EDF5"               # near-white — hold / optimal
+
+    def sec_opacity(grp):
+        """Opacity encodes signal strength: vivid = strong/confident, faded = weak/uncertain."""
+        d = section_data.get(grp, {})
+        if not d:
+            return 0.55          # no data — faded
+        ap = abs(d.get("price_change_pct", 0))
+        if ap > 15: return 1.00  # very strong signal
+        if ap > 8:  return 0.90  # strong
+        if ap > 4:  return 0.75  # moderate
+        return 0.65              # near-optimal, softer appearance
 
     def txt_col(fill):
         return "#1F2937" if fill in LIGHT_FILLS else "#FFFFFF"
@@ -467,6 +478,7 @@ def _build_stadium_svg(section_data: dict, scenario: str, game_label: str) -> st
 
     def add_rect_section(lbl, grp, tier, x0, x1, y0, y1, n_rows=18, row_axis="h", show_label=True):
         fill = sec_fill(grp, tier)
+        opac = sec_opacity(grp)
         tc   = txt_col(fill)
         tip  = hover_html(lbl, grp, tier)
         d    = section_data.get(grp, {})
@@ -481,8 +493,8 @@ def _build_stadium_svg(section_data: dict, scenario: str, game_label: str) -> st
             fsz = 10 if w_units > 0.16 and h_units > 0.10 else 7
             label_svg = f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" dominant-baseline="middle" fill="{tc}" font-size="{fsz}" font-family="Arial" font-weight="bold" pointer-events="none">{price_txt}</text>'
         sections_svg.append(f"""
-  <g class="sec" data-tip="{tip}">
-    <polygon points="{poly_pts}" fill="{fill}" stroke="rgba(255,255,255,0.6)" stroke-width="0.8"/>
+  <g class="sec" data-tip="{tip}" style="opacity:{opac}">
+    <polygon points="{poly_pts}" fill="{fill}" stroke="rgba(255,255,255,0.5)" stroke-width="0.8"/>
     {rows_svg}
     {label_svg}
   </g>""")
@@ -490,16 +502,15 @@ def _build_stadium_svg(section_data: dict, scenario: str, game_label: str) -> st
     def add_trap_section(lbl, grp, tier, x0, x1, y0, y1, taper=0.03, side="south", n_rows=22, show_label=True):
         """Trapezoidal section: outer edge full width, inner edge narrowed by taper."""
         fill = sec_fill(grp, tier)
+        opac = sec_opacity(grp)
         tc   = txt_col(fill)
         tip  = hover_html(lbl, grp, tier)
         d    = section_data.get(grp, {})
         price_txt = f"${d.get('scenario_price', d.get('face_price', 0)):.0f}" if d else lbl.split("\n")[0][:5]
         mx, my = px((x0+x1)/2, (y0+y1)/2)
         if side == "south":
-            # outer = y0 (full width), inner = y1 (narrowed)
             poly_pts = pts((x0,y0),(x1,y0),(x1-taper,y1),(x0+taper,y1))
-        else:  # north
-            # inner = y0 (narrowed), outer = y1 (full width)
+        else:
             poly_pts = pts((x0+taper,y0),(x1-taper,y0),(x1,y1),(x0,y1))
         rows_svg = row_lines(x0, x1, y0, y1, n_rows, taper=taper if side=="south" else 0, axis="h")
         w_units = abs(x1-x0)
@@ -509,8 +520,8 @@ def _build_stadium_svg(section_data: dict, scenario: str, game_label: str) -> st
             fsz = 10 if w_units > 0.16 and h_units > 0.10 else 7
             label_svg = f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" dominant-baseline="middle" fill="{tc}" font-size="{fsz}" font-family="Arial" font-weight="bold" pointer-events="none">{price_txt}</text>'
         sections_svg.append(f"""
-  <g class="sec" data-tip="{tip}">
-    <polygon points="{poly_pts}" fill="{fill}" stroke="rgba(255,255,255,0.6)" stroke-width="0.8"/>
+  <g class="sec" data-tip="{tip}" style="opacity:{opac}">
+    <polygon points="{poly_pts}" fill="{fill}" stroke="rgba(255,255,255,0.5)" stroke-width="0.8"/>
     {rows_svg}
     {label_svg}
   </g>""")
@@ -883,42 +894,18 @@ def render_seat_map():
                 "sell_through": scen.get("expected_sell_through", 80),
             }
 
-    # ── Legend pills ─────────────────────────────────────────────────────────────
-    rec_legend = [
-        ("#1E3A8A", "white",   "Price increase recommended"),
-        ("#60A5FA", "#1F2937", "Slight price increase recommended"),
-        ("#E8EDF5", "#374151", "No change recommended"),
-        ("#FCA5A5", "#7F1D1D", "Slight price decrease recommended"),
-        ("#DC2626", "white",   "Price decrease recommended"),
-    ]
-    tier_legend = [
-        ("#B91C1C", "white",   "Goal end"),
-        ("#1B4F9C", "white",   "Sideline"),
-        ("#7C3AED", "white",   "Field Club"),
-        ("#374151", "white",   "Supporters GA"),
-    ]
-    conf_legend = [
-        ("#DC2626", "white",   "Confidence 1–2"),
-        ("#FBBF24", "#1F2937", "Confidence 3"),
-        ("#10B981", "white",   "Confidence 4–5"),
-    ]
-
-    def _legend_pills(items):
-        return "".join(
-            f'<span style="background:{bg};color:{tc};padding:2px 10px;'
-            f'border-radius:3px;font-size:11px;border:1px solid rgba(0,0,0,0.1)">{l}</span>'
-            for bg, tc, l in items
-        )
-
-    legend_html = (
-        "<div style='display:flex;flex-wrap:wrap;gap:5px;margin-bottom:4px'>"
-        + _legend_pills(rec_legend) + "</div>"
-        "<div style='display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px'>"
-        + _legend_pills(tier_legend)
-        + "<span style='margin-left:12px;color:#888;font-size:11px;align-self:center'>Confidence:</span>"
-        + _legend_pills(conf_legend)
-        + "</div>"
-    )
+    # ── Legend: single gradient bar ───────────────────────────────────────────────
+    legend_html = """
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+  <span style="font-size:11px;color:#9CA3AF;white-space:nowrap">Raise price</span>
+  <div style="height:14px;width:220px;border-radius:4px;flex-shrink:0;
+    background:linear-gradient(to right,#1E3A8A,#60A5FA,#E8EDF5,#FCA5A5,#DC2626);
+    border:1px solid rgba(255,255,255,0.1)"></div>
+  <span style="font-size:11px;color:#9CA3AF;white-space:nowrap">Lower price</span>
+  <span style="font-size:11px;color:#6B7280;margin-left:16px;white-space:nowrap">
+    Opacity = confidence &nbsp;(vivid = high signal &nbsp;·&nbsp; faded = low signal)
+  </span>
+</div>"""
     st.markdown(legend_html, unsafe_allow_html=True)
 
     # ── SVG seat map ──────────────────────────────────────────────────────────────
