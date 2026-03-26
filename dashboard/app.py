@@ -303,7 +303,7 @@ def render_seat_map():
             return
 
         game_options = {
-            f"{row.get('date', '')[:10]} vs {row.get('opponent', '')}": row["game_id"]
+            f"{str(row.get('date', ''))[:10]} vs {row.get('opponent', '')}": row["game_id"]
             for _, row in games_df.iterrows()
         }
         selected_game_label = st.selectbox("Select Game", list(game_options.keys()))
