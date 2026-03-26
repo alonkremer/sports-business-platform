@@ -155,15 +155,28 @@ def _build_recommendation(row: pd.Series, optimizer_row: Optional[pd.DataFrame])
     if _state["demand_model"] is not None:
         try:
             from src.pricing_model.demand_model import predict, generate_shap_explanation
-            pred_df = predict(_state["demand_model"], _state["shap_explainer"], row.to_frame().T)
-            if not pred_df.empty:
-                shap_top5 = pred_df.iloc[0]["shap_top5"]
-                explanation = generate_shap_explanation(
-                    shap_top5,
-                    face_price=float(row.get("face_price", 60)),
-                    optimal_price=float(row.get("optimal_face_from_secondary", row.get("face_price", 60))),
-                    game_context={"section": row.get("section"), "opponent": row.get("opponent")},
-                )
+            # Slice from features_df to preserve correct dtypes (row.to_frame().T casts to object)
+            feat_row = _state["features_df"][
+                (_state["features_df"]["game_id"] == row.get("game_id")) &
+                (_state["features_df"]["section"] == row.get("section"))
+            ]
+            if not feat_row.empty:
+                pred_df = predict(_state["demand_model"], _state["shap_explainer"], feat_row.iloc[[0]])
+                if not pred_df.empty:
+                    shap_top5 = pred_df.iloc[0]["shap_top5"]
+                    # Use balanced optimizer price as optimal_price if available
+                    face = float(row.get("face_price", 60))
+                    optimal = face
+                    if optimizer_row is not None and not optimizer_row.empty:
+                        bal = optimizer_row[optimizer_row.get("scenario", pd.Series()) == "balanced"] if "scenario" in optimizer_row.columns else optimizer_row
+                        if not bal.empty:
+                            optimal = float(bal.iloc[0].get("price", face))
+                    explanation = generate_shap_explanation(
+                        shap_top5,
+                        face_price=face,
+                        optimal_price=optimal,
+                        game_context={"section": row.get("section"), "opponent": row.get("opponent")},
+                    )
         except Exception as exc:
             logger.warning(f"SHAP failed: {exc}")
 
@@ -440,6 +453,30 @@ async def get_alerts(season: int = Query(default=2026)):
                 "sold_price_avg": float(row.get("sold_price_avg", 0) or 0),
                 "secondary_premium_pct": float(row.get("secondary_premium_pct", 0) or 0),
                 "revenue_opp_per_seat": float(row.get("revenue_opp_per_seat", 0) or 0),
+            }
+        ))
+
+    # Cold market alerts
+    cold = df[df["market_health"] == "cold"] if "market_health" in df.columns else pd.DataFrame()
+    for _, row in cold.iterrows():
+        premium = float(row.get("secondary_premium_pct", 0) or 0)
+        face = float(row.get("face_price", 0) or 0)
+        alerts.append(AlertResponse(
+            alert_type="cold_market",
+            severity="info",
+            game_id=str(row["game_id"]),
+            section=str(row["section"]),
+            tier=str(row["tier"]),
+            message=(
+                f"Section {row['section']} vs {row.get('opponent', 'TBD')} is COLD — "
+                f"secondary at {premium:.0f}% vs face (${face:.0f}). "
+                f"Demand below expectations. Consider promotional pricing or bundle."
+            ),
+            recommended_action="Hold price or apply targeted discount/bundle to drive sell-through.",
+            data={
+                "face_price": face,
+                "secondary_premium_pct": premium,
+                "market_health": str(row.get("market_health", "cold")),
             }
         ))
 
