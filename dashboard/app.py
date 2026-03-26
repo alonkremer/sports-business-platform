@@ -325,26 +325,7 @@ def render_seat_map():
 
     recs_df = pd.DataFrame(recs)
 
-    # Snapdragon Stadium schematic (simplified Plotly layout)
-    # Section positions on a schematic oval
-    SECTION_POSITIONS = {
-        "GA_136_140":   (0, -0.95, "GA 136-140", "supporters_ga"),
-        "LB_101_105":   (-0.80, -0.55, "101-105", "lower_bowl_corner"),
-        "LB_106_110":   (-0.90, 0.00, "106-110", "lower_bowl_goal"),
-        "LB_111_115":   (-0.70, 0.55, "111-115", "lower_bowl_midfield"),
-        "LB_116_120":   (0.70, 0.55, "116-120", "lower_bowl_midfield"),
-        "LB_121_123":   (0.90, 0.00, "121-123", "lower_bowl_corner"),
-        "LB_133_135":   (-0.50, 0.82, "133-135", "lower_bowl_corner"),
-        "LB_141":       (0.80, -0.55, "141", "lower_bowl_corner"),
-        "FC_C124_C132": (0.00, 0.00, "C124-C132\nField Club", "field_club"),
-        "UB_202_207":   (-0.95, -0.30, "202-207", "upper_bowl"),
-        "UB_208_212":   (-0.95, 0.30, "208-212", "upper_bowl"),
-        "UB_235_238":   (0.95, 0.30, "235-238", "upper_bowl"),
-        "WC_C223_C231": (0.00, 0.75, "C223-C231\nWest Club", "west_club"),
-        "UC_323_334":   (0.00, -0.75, "323-334\nUpper Concourse", "upper_concourse"),
-    }
-
-    # Get price/scenario data for each section
+    # Get price/scenario data for each section group
     section_data = {}
     for rec in recs:
         section = rec.get("section", "")
@@ -362,80 +343,247 @@ def render_seat_map():
                 "sell_through": scen.get("expected_sell_through", 80),
             }
 
-    # Build Plotly schematic
+    # ── Snapdragon Stadium — proper arc-polygon schematic ─────────────────────
+    # Orientation: pitch runs North↑ South↓.  Goals at top (N) and bottom (S).
+    # East (right) and West (left) are the long sidelines.
+    # Math angle convention: 0°=east, 90°=north, CCW positive.
+    # xscale=1.0, yscale=0.62  →  elliptical stadium footprint.
+
+    def _arc_poly(r_in, r_out, a0, a1, n=20):
+        """Arc-shaped polygon. Angles in degrees; wraps correctly through 0°."""
+        XS, YS = 1.0, 0.62
+        if a1 <= a0:
+            a1 += 360            # ensure CCW arc is always forward
+        t_out = np.linspace(np.radians(a0), np.radians(a1), n)
+        t_in  = np.linspace(np.radians(a1), np.radians(a0), n)
+        xo = r_out * np.cos(t_out) * XS;  yo = r_out * np.sin(t_out) * YS
+        xi = r_in  * np.cos(t_in)  * XS;  yi = r_in  * np.sin(t_in)  * YS
+        x = np.concatenate([xo, xi, [xo[0]]])
+        y = np.concatenate([yo, yi, [yo[0]]])
+        return x.tolist(), y.tolist()
+
+    def _lbl(r_mid, a0, a1):
+        """Label centre for an arc section."""
+        if a1 <= a0:
+            a1 += 360
+        a_mid = np.radians((a0 + a1) / 2)
+        return r_mid * np.cos(a_mid) * 1.0, r_mid * np.sin(a_mid) * 0.62
+
+    # SD FC official pricing tier colors (matches published pricing chart)
+    TIER_FILL = {
+        "goal_end":        "#C8102E",  # SD FC red  — 101-106, 113-116
+        "midfield":        "#1A4F9C",  # SD FC blue — sideline midfield
+        "corner":          "#E05A28",  # orange     — corner/transition
+        "supporters_ga":   "#374151",  # charcoal   — GA standing
+        "field_club":      "#6B21A8",  # purple     — C124-C132 pitch-level
+        "upper_bowl":      "#374985",  # steel blue — 200s
+        "west_club":       "#4C1D95",  # dark purple— west club suites
+        "upper_concourse": "#6B7280",  # gray       — 300s concourse
+    }
+
+    # fmt: (label, group_key, a_start°, a_end°, r_inner, r_outer, tier)
+    LOWER_SECTIONS = [
+        # ── South goal end (supporters end) ───────────────────────────────────
+        ("101", "LB_101_105",   225, 243, .50, .68, "goal_end"),
+        ("102", "LB_101_105",   243, 261, .50, .68, "goal_end"),
+        ("103", "LB_101_105",   261, 279, .50, .68, "goal_end"),
+        ("104", "LB_101_105",   279, 297, .50, .68, "goal_end"),
+        ("105", "LB_101_105",   297, 315, .50, .68, "goal_end"),
+        ("106", "LB_106_110",   315, 333, .50, .68, "goal_end"),
+        # GA supporters — inner ring (pitch-level standing, south end)
+        ("GA 136", "GA_136_140", 230, 249, .34, .47, "supporters_ga"),
+        ("GA 137", "GA_136_140", 249, 264, .34, .47, "supporters_ga"),
+        ("GA 138", "GA_136_140", 264, 276, .34, .47, "supporters_ga"),
+        ("GA 139", "GA_136_140", 276, 291, .34, .47, "supporters_ga"),
+        ("GA 140", "GA_136_140", 291, 310, .34, .47, "supporters_ga"),
+        # ── East sideline (333°–45°, wraps through 0°) ────────────────────────
+        ("107", "LB_106_110",   333, 345, .50, .68, "midfield"),
+        ("108", "LB_106_110",   345, 357, .50, .68, "midfield"),
+        ("109", "LB_106_110",   357,   9, .50, .68, "midfield"),
+        ("110", "LB_106_110",     9,  21, .50, .68, "midfield"),
+        ("111", "LB_111_115",    21,  33, .50, .68, "midfield"),
+        ("112", "LB_111_115",    33,  43, .50, .68, "midfield"),
+        # ── NE corner ─────────────────────────────────────────────────────────
+        ("141", "LB_141",        43,  55, .50, .68, "corner"),
+        # ── North goal end ────────────────────────────────────────────────────
+        ("113", "LB_111_115",    55,  73, .50, .68, "goal_end"),
+        ("114", "LB_111_115",    73,  91, .50, .68, "goal_end"),
+        ("115", "LB_111_115",    91, 109, .50, .68, "goal_end"),
+        ("116", "LB_116_120",   109, 127, .50, .68, "goal_end"),
+        ("133", "LB_133_135",   127, 141, .50, .68, "corner"),
+        ("134", "LB_133_135",   141, 153, .50, .68, "corner"),
+        ("135", "LB_133_135",   153, 163, .50, .68, "corner"),
+        # ── West sideline (163°–225°, premium side) ───────────────────────────
+        ("117", "LB_116_120",   163, 173, .50, .68, "midfield"),
+        ("118", "LB_116_120",   173, 183, .50, .68, "midfield"),
+        ("119", "LB_116_120",   183, 193, .50, .68, "midfield"),
+        ("120", "LB_116_120",   193, 203, .50, .68, "midfield"),
+        ("121", "LB_121_123",   203, 211, .50, .68, "midfield"),
+        ("122", "LB_121_123",   211, 218, .50, .68, "midfield"),
+        ("123", "LB_121_123",   218, 225, .50, .68, "midfield"),
+        # Field Club — inner ring (pitch-level premium, west sideline)
+        ("C124", "FC_C124_C132", 163, 172, .34, .47, "field_club"),
+        ("C125", "FC_C124_C132", 172, 181, .34, .47, "field_club"),
+        ("C126", "FC_C124_C132", 181, 190, .34, .47, "field_club"),
+        ("C127", "FC_C124_C132", 190, 199, .34, .47, "field_club"),
+        ("C128", "FC_C124_C132", 199, 207, .34, .47, "field_club"),
+        ("C129", "FC_C124_C132", 207, 213, .34, .47, "field_club"),
+        ("C130", "FC_C124_C132", 213, 217, .34, .47, "field_club"),
+        ("C131", "FC_C124_C132", 217, 221, .34, .47, "field_club"),
+        ("C132", "FC_C124_C132", 221, 225, .34, .47, "field_club"),
+    ]
+
+    UPPER_SECTIONS = [
+        # Upper bowl arc groups
+        ("202–207",          "UB_202_207",   315,  45, .72, .86, "upper_bowl"),
+        ("208–212",          "UB_208_212",   220, 315, .72, .86, "upper_bowl"),
+        ("235–238 + Upper",  "UB_235_238",    45, 220, .72, .86, "upper_bowl"),
+        # West Club suites (upper level, west sideline)
+        ("West Club\nC223–C231", "WC_C223_C231", 153, 225, .88, .97, "west_club"),
+        # Upper Concourse
+        ("Concourse\n323–334",   "UC_323_334",   215, 330, .88, .97, "upper_concourse"),
+    ]
+
     fig = go.Figure()
 
-    # Stadium oval outline
-    theta = np.linspace(0, 2*np.pi, 100)
-    fig.add_trace(go.Scatter(
-        x=np.cos(theta), y=np.sin(theta) * 0.7,
-        mode="lines", line=dict(color="#cccccc", width=2),
-        showlegend=False, hoverinfo="skip",
-    ))
-    # Pitch rectangle
-    fig.add_shape(type="rect", x0=-0.45, x1=0.45, y0=-0.30, y1=0.30,
-                  line=dict(color="#4CAF50", width=2), fillcolor="rgba(76,175,80,0.15)")
-    fig.add_annotation(x=0, y=0, text="PITCH", font=dict(size=10, color="#4CAF50"),
-                       showarrow=False)
+    # ── Pitch (runs N↑S, narrow in x, tall in y) ──────────────────────────────
+    PX, PY = 0.22, 0.235     # half-width, half-height in plot coords
+    fig.add_shape(type="rect", x0=-PX, x1=PX, y0=-PY, y1=PY,
+                  line=dict(color="#2d6a2d", width=2),
+                  fillcolor="#2d6a2d", layer="below")
+    fig.add_shape(type="line", x0=-PX, x1=PX, y0=0, y1=0,
+                  line=dict(color="#4a9d4a", width=1.5))
+    fig.add_shape(type="circle",
+                  x0=-0.08, y0=-0.048, x1=0.08, y1=0.048,
+                  line=dict(color="#4a9d4a", width=1.5))
+    # Penalty areas
+    fig.add_shape(type="rect", x0=-0.11, x1=0.11,
+                  y0=PY - 0.075, y1=PY,
+                  line=dict(color="#4a9d4a", width=1.2))
+    fig.add_shape(type="rect", x0=-0.11, x1=0.11,
+                  y0=-PY, y1=-PY + 0.075,
+                  line=dict(color="#4a9d4a", width=1.2))
+    fig.add_annotation(x=0, y=0, text="⚽", font=dict(size=14), showarrow=False)
 
-    # Section markers
-    for section, (sx, sy, label, tier) in SECTION_POSITIONS.items():
-        d = section_data.get(section, {})
-        price_chg = d.get("price_change_pct", 0)
-        health = d.get("market_health", "healthy")
-        face = d.get("face_price", 60)
-        scen_price = d.get("scenario_price", face)
+    # ── Draw sections (upper bowl first so lower bowl overlaps on hover) ───────
+    for sections in [UPPER_SECTIONS, LOWER_SECTIONS]:
+        for (lbl, grp, a0, a1, ri, ro, tier) in sections:
+            d = section_data.get(grp, {})
+            has_data = bool(d)
+            span = (a1 - a0) if a1 > a0 else (a1 - a0 + 360)
 
-        # Color based on price change direction
-        if price_chg > 15:
-            color = COLORS["hot"]
-        elif price_chg > 5:
-            color = COLORS["warm"]
-        elif price_chg < -5:
-            color = COLORS["cold"]
-        else:
-            color = COLORS["healthy"]
+            # Fill color: price-change direction when API data available
+            if has_data:
+                pchg = d.get("price_change_pct", 0)
+                if pchg > 15:
+                    fill = COLORS["hot"]
+                elif pchg > 5:
+                    fill = COLORS["warm"]
+                elif pchg < -5:
+                    fill = COLORS["cold"]
+                else:
+                    fill = COLORS["healthy"]
+            else:
+                fill = TIER_FILL.get(tier, "#6B7280")
 
-        hover = (
-            f"<b>{label}</b><br>"
-            f"Tier: {tier}<br>"
-            f"Current: ${face:.0f}<br>"
-            f"Recommended ({scenario}): ${scen_price:.0f}<br>"
-            f"Change: {price_chg:+.1f}%<br>"
-            f"Market: {HEALTH_LABELS.get(health, health)}<br>"
-            f"STH Healthy: {'✓' if d.get('sth_healthy', True) else '✗'}<br>"
-            f"Sell-through: {d.get('sell_through', 80):.0f}%"
-        )
+            px_poly, py_poly = _arc_poly(ri, ro, a0, a1)
+            lx, ly = _lbl(0.5 * (ri + ro), a0, a1)
 
-        fig.add_trace(go.Scatter(
-            x=[sx], y=[sy],
-            mode="markers+text",
-            marker=dict(size=35, color=color, opacity=0.85,
-                        line=dict(color="white", width=1.5)),
-            text=[f"${scen_price:.0f}"],
-            textfont=dict(size=9, color="white"),
-            textposition="middle center",
-            hovertemplate=hover + "<extra></extra>",
-            name=section,
-            showlegend=False,
-        ))
+            face      = d.get("face_price", 0)
+            scen_p    = d.get("scenario_price", face)
+            pchg_val  = d.get("price_change_pct", 0)
+            health    = d.get("market_health", "")
+            sth_ok    = d.get("sth_healthy", True)
+            sell_thru = d.get("sell_through", 80)
+
+            hover = (
+                f"<b>Section {lbl}</b><br>"
+                f"Group: {grp}<br>"
+                + (f"Current: ${face:.0f}<br>"
+                   f"{scenario.title()} rec: ${scen_p:.0f} ({pchg_val:+.1f}%)<br>"
+                   f"Market: {HEALTH_LABELS.get(health, health)}<br>"
+                   f"STH: {'✓ Healthy' if sth_ok else '⚠ Risk'} | "
+                   f"Sell-through: {sell_thru:.0f}%"
+                   if has_data else "No pricing data for this section")
+            )
+
+            fig.add_trace(go.Scatter(
+                x=px_poly, y=py_poly,
+                fill="toself",
+                fillcolor=fill,
+                line=dict(color="#0a0a1a", width=0.7),
+                mode="lines",
+                hovertemplate=hover + "<extra></extra>",
+                showlegend=False,
+                opacity=0.90,
+            ))
+
+            # Section label (price if data available, else section number)
+            if span >= 9:
+                label_text = f"${scen_p:.0f}" if has_data else lbl.split("\n")[0]
+                fig.add_annotation(
+                    x=lx, y=ly,
+                    text=label_text,
+                    font=dict(size=7 if span < 14 else 8, color="white",
+                               family="Arial Black"),
+                    showarrow=False,
+                )
+
+    # Named premium areas
+    fc_lx, fc_ly = _lbl(0.405, 163, 225)
+    fig.add_annotation(x=fc_lx, y=fc_ly,
+                       text="FIELD<br>CLUB",
+                       font=dict(size=7, color="white", family="Arial"),
+                       showarrow=False, align="center")
+    # Compass / orientation cues
+    fig.add_annotation(x=0,     y=0.74,  text="NORTH GOAL ↑",
+                       font=dict(size=9, color="#aaa"), showarrow=False)
+    fig.add_annotation(x=0,     y=-0.74, text="↓ SOUTH GOAL (Supporters)",
+                       font=dict(size=9, color="#aaa"), showarrow=False)
+    fig.add_annotation(x=-1.08, y=0,     text="← West\n(Premium)",
+                       font=dict(size=8, color="#aaa"), showarrow=False)
+    fig.add_annotation(x=1.08,  y=0,     text="East →",
+                       font=dict(size=8, color="#aaa"), showarrow=False)
 
     fig.update_layout(
-        title=f"Snapdragon Stadium — {selected_game_label} ({scenario.title()} Scenario)",
-        xaxis=dict(range=[-1.3, 1.3], showticklabels=False, showgrid=False, zeroline=False),
-        yaxis=dict(range=[-1.3, 1.1], showticklabels=False, showgrid=False, zeroline=False,
-                   scaleanchor="x"),
-        height=550,
-        plot_bgcolor="rgba(240,242,246,1)",
+        title=dict(
+            text=(f"Snapdragon Stadium — {selected_game_label} | "
+                  f"{scenario.title()} Scenario"),
+            font=dict(size=14, color="#eee"),
+            x=0.5,
+        ),
+        xaxis=dict(range=[-1.22, 1.22], showticklabels=False, showgrid=False,
+                   zeroline=False, fixedrange=True),
+        yaxis=dict(range=[-0.82, 0.82], showticklabels=False, showgrid=False,
+                   zeroline=False, scaleanchor="x", fixedrange=True),
+        height=620,
+        margin=dict(l=5, r=5, t=50, b=5),
+        plot_bgcolor="#12122a",
         paper_bgcolor="rgba(0,0,0,0)",
+        hovermode="closest",
     )
 
-    # Color legend
-    legend_html = " ".join([
-        f'<span style="background:{c};color:white;padding:3px 8px;border-radius:4px;margin:2px;font-size:12px">{HEALTH_LABELS[k]}</span>'
-        for k, c in HEALTH_COLORS.items()
-    ])
-    st.markdown(f"**Price Change Direction:** {legend_html}", unsafe_allow_html=True)
+    # Legend
+    legend_items = [
+        (COLORS["hot"],              "HOT — raise 15%+"),
+        (COLORS["warm"],             "WARM — raise 5-15%"),
+        (COLORS["healthy"],          "HEALTHY — near optimal"),
+        (COLORS["cold"],             "COLD — consider reduction"),
+        (TIER_FILL["goal_end"],      "Goal end (default)"),
+        (TIER_FILL["midfield"],      "Midfield (default)"),
+        (TIER_FILL["field_club"],    "Field Club"),
+        (TIER_FILL["supporters_ga"], "Supporters GA"),
+    ]
+    legend_html = (
+        "<div style='display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px'>"
+        + "".join(
+            f'<span style="background:{c};color:white;padding:2px 8px;'
+            f'border-radius:3px;font-size:11px">{l}</span>'
+            for c, l in legend_items
+        )
+        + "</div>"
+    )
+    st.markdown(legend_html, unsafe_allow_html=True)
     st.plotly_chart(fig, use_container_width=True)
 
     # Section detail panel (click simulation via selectbox)
