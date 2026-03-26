@@ -1,0 +1,7 @@
+sdfc_pricing:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('DUCKDB_PATH', 'data/sdfc_pricing.duckdb') }}"
+      threads: 4

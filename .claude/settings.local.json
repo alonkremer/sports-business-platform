@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"C:\\\\Users\\\\User\\\\Claude Code\\\\Sports Business Project\\\\src\\\\database\\\\__init__.py\")",
+      "Bash(\"C:\\\\Users\\\\User\\\\Claude Code\\\\Sports Business Project\\\\src\\\\feature_engineering\\\\__init__.py\")",
+      "Bash(\"C:/Users/User/Claude Code/Sports Business Project/api/__init__.py\")",
+      "Bash(\"C:/Users/User/Claude Code/Sports Business Project/api/routes/__init__.py\")",
+      "Bash(\"C:/Users/User/Claude Code/Sports Business Project/agents/__init__.py\")",
+      "Bash(\"C:/Users/User/Claude Code/Sports Business Project/tests/__init__.py\")",
+      "Bash(\"C:/Users/User/Claude Code/Sports Business Project/tests/unit/__init__.py\")",
+      "Bash(\"C:/Users/User/Claude Code/Sports Business Project/tests/integration/__init__.py\")",
+      "Bash(\"C:/Users/User/Claude Code/Sports Business Project/tests/backtest/__init__.py\")",
+      "Bash(sort find:*)"
+    ]
+  }
+}
