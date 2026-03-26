@@ -11,7 +11,7 @@ import duckdb
 import pandas as pd
 from loguru import logger
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "data"
 RAW_DIR  = DATA_DIR / "raw"
 DB_PATH  = DATA_DIR / "sdfc_pricing.duckdb"
@@ -136,19 +136,21 @@ def build_silver_views(con: duckdb.DuckDBPyConnection) -> None:
             f.base_price::DOUBLE  AS face_base_price,
             f.demand_multiplier::DOUBLE AS demand_multiplier,
 
-            s.sold_price_avg::DOUBLE    AS sold_price_avg,
-            s.sold_price_p25::DOUBLE    AS sold_price_p25,
-            s.sold_price_p75::DOUBLE    AS sold_price_p75,
-            s.listing_price_avg::DOUBLE AS listing_price_avg,
+            -- Rebase sold_price_avg anchored to ticketmaster face price × stored premium
+            -- This ensures economics are consistent: high-demand face prices reflect the same demand signal
+            f.list_price * (1.0 + s.secondary_premium_pct / 100.0) AS sold_price_avg,
+            f.list_price * (1.0 + s.secondary_premium_pct / 100.0) * 0.87 AS sold_price_p25,
+            f.list_price * (1.0 + s.secondary_premium_pct / 100.0) * 1.13 AS sold_price_p75,
+            f.list_price * (1.0 + s.secondary_premium_pct / 100.0) * 1.15 AS listing_price_avg,
             s.secondary_premium_pct::DOUBLE AS secondary_premium_pct,
             s.market_health,
-            s.revenue_opp_per_seat::DOUBLE AS revenue_opp_per_seat,
+            GREATEST(0, f.list_price * (s.secondary_premium_pct / 100.0 - 0.10) / 1.10) AS revenue_opp_per_seat,
             s.n_sold_transactions_est::INTEGER AS n_sold_transactions_est,
 
-            (s.sold_price_avg - f.list_price)   AS price_gap_sold_vs_face,
-            (s.sold_price_avg - f.list_price) / NULLIF(f.list_price, 0) * 100 AS price_gap_pct,
-            s.sold_price_avg - (f.list_price * 1.10) AS sth_resale_margin,
-            s.sold_price_avg / 1.10 - f.list_price   AS optimal_price_increase,
+            f.list_price * s.secondary_premium_pct / 100.0                             AS price_gap_sold_vs_face,
+            s.secondary_premium_pct                                                     AS price_gap_pct,
+            f.list_price * (s.secondary_premium_pct / 100.0 - 0.10)                   AS sth_resale_margin,
+            f.list_price * (s.secondary_premium_pct / 100.0 - 0.10) / 1.10            AS optimal_price_increase,
 
             CASE
                 WHEN s.secondary_premium_pct < 10  THEN 'cold'
@@ -250,7 +252,98 @@ def build_gold_tables(con: duckdb.DuckDBPyConnection) -> None:
 
         FROM silver.pricing p
         LEFT JOIN silver.games g ON p.game_id = g.game_id
-        ORDER BY p.season, g.date, p.tier, p.section
+        WHERE p.season = 2026
+
+        UNION ALL
+
+        -- 2025 historical rows: cross 2025 games × section price template × 2025 secondary market
+        SELECT
+            g25.game_id,
+            tmpl.section,
+            2025::INTEGER                                  AS season,
+            g25.date::DATE                                 AS date,
+            g25.day_of_week,
+            g25.opponent,
+            g25.opponent_clean,
+            g25.opponent_tier,
+            g25.is_rivalry,
+            g25.is_marquee,
+            g25.is_baja_cup,
+            g25.is_season_opener,
+            g25.is_decision_day,
+            g25.is_saturday,
+            g25.is_wednesday,
+            g25.is_sunday,
+            g25.is_weekend,
+            g25.is_fifa_adjacent,
+            g25.star_player_on_opponent,
+            g25.is_cross_border_event,
+            g25.home_win_prob,
+            g25.home_xg,
+            g25.away_xg,
+            g25.temp_f,
+            g25.rain_prob,
+            g25.is_high_rain_risk,
+            g25.demand_index,
+            g25.attendance_or_projection,
+            g25.result,
+            g25.goals_for,
+            g25.goals_against,
+
+            tmpl.tier,
+            tmpl.capacity,
+            tmpl.face_price                                         AS face_price,
+            tmpl.face_price                                         AS face_base_price,
+            1.0                                                     AS demand_multiplier,
+
+            -- Rebase sold_price_avg to be consistent with face price × stored premium
+            tmpl.face_price * (1.0 + sm.secondary_premium_pct / 100.0)        AS sold_price_avg,
+            tmpl.face_price * (1.0 + sm.secondary_premium_pct / 100.0) * 0.87 AS sold_price_p25,
+            tmpl.face_price * (1.0 + sm.secondary_premium_pct / 100.0) * 1.13 AS sold_price_p75,
+            tmpl.face_price * (1.0 + sm.secondary_premium_pct / 100.0) * 1.15 AS listing_price_avg,
+            sm.secondary_premium_pct,
+            sm.market_health                                        AS market_health,
+            COALESCE(sm.n_sold_transactions_est, 50)               AS n_sold_transactions_est,
+            GREATEST(0, tmpl.face_price * (sm.secondary_premium_pct / 100.0 - 0.10) / 1.10) AS revenue_opp_per_seat,
+
+            tmpl.face_price * sm.secondary_premium_pct / 100.0                AS price_gap_sold_vs_face,
+            sm.secondary_premium_pct                                           AS price_gap_pct,
+            tmpl.face_price * (sm.secondary_premium_pct / 100.0 - 0.10)      AS sth_resale_margin,
+            tmpl.face_price * (sm.secondary_premium_pct / 100.0 - 0.10) / 1.10 AS optimal_price_increase,
+            CASE
+                WHEN tmpl.face_price * (sm.secondary_premium_pct / 100.0 - 0.10) / 1.10 > 20 THEN 'high'
+                WHEN tmpl.face_price * (sm.secondary_premium_pct / 100.0 - 0.10) / 1.10 > 8  THEN 'medium'
+                WHEN tmpl.face_price * (sm.secondary_premium_pct / 100.0 - 0.10) / 1.10 > 0  THEN 'low'
+                ELSE 'none'
+            END AS opportunity_tier,
+
+            GREATEST(0, tmpl.face_price * (sm.secondary_premium_pct / 100.0 - 0.10) / 1.10)
+                * (tmpl.capacity * 0.15)                           AS total_revenue_opportunity,
+
+            (sm.secondary_premium_pct > 30)::BOOLEAN              AS is_hot_market_alert,
+            (tmpl.face_price * (sm.secondary_premium_pct / 100.0 - 0.10) / 1.10 > 25)::BOOLEAN AS is_backlash_risk,
+
+            LEAST(10, GREATEST(0,
+                CASE WHEN tmpl.face_price * (sm.secondary_premium_pct / 100.0 - 0.10) / 1.10 > 25 THEN 4 ELSE 0 END +
+                CASE WHEN g25.is_rivalry THEN 2 ELSE 0 END +
+                CASE WHEN g25.is_marquee THEN 1 ELSE 0 END +
+                CASE WHEN g25.opponent_tier = 1 THEN 1 ELSE 0 END +
+                CASE WHEN sm.secondary_premium_pct > 50 THEN 2 ELSE 0 END
+            )) AS backlash_risk_score
+
+        FROM silver.games g25
+        CROSS JOIN (
+            SELECT section, tier, capacity,
+                   AVG(face_price)        AS face_price,
+                   AVG(demand_multiplier) AS demand_multiplier
+            FROM silver.pricing
+            GROUP BY section, tier, capacity
+        ) tmpl
+        LEFT JOIN bronze.secondary_market sm
+            ON sm.game_id = g25.game_id AND sm.section = tmpl.section
+        WHERE g25.season = 2025
+
+        ORDER BY season, date, tier, section
     """)
 
     count = con.execute("SELECT COUNT(*) FROM gold.fact_game_pricing").fetchone()[0]

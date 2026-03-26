@@ -22,12 +22,12 @@ from loguru import logger
 from sklearn.metrics import mean_absolute_percentage_error, mean_squared_error
 from sklearn.model_selection import TimeSeriesSplit
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 FEAT_DIR  = ROOT / "data" / "features"
 MODEL_DIR = ROOT / "mlflow"
 FEAT_FILE = FEAT_DIR / "demand_features.parquet"
 
-MLFLOW_TRACKING_URI = str(ROOT / "mlflow")
+MLFLOW_TRACKING_URI = (ROOT / "mlflow").as_uri()
 EXPERIMENT_NAME = "sdfc_demand_model"
 
 # Feature columns for XGBoost (all g1–g14 prefixed columns)
@@ -97,9 +97,12 @@ def train(
     if df is None:
         df = pd.read_parquet(FEAT_FILE)
 
-    # Filter to 2025 season (actuals) for training
+    # Prefer 2025 actuals; fall back to all available data when 2025 is absent
     train_df = df[df["season"] == 2025].copy()
-    logger.info(f"Training on {len(train_df):,} rows (2025 season)")
+    if len(train_df) < 50:
+        logger.warning(f"Only {len(train_df)} 2025 rows — training on all available seasons")
+        train_df = df.copy()
+    logger.info(f"Training on {len(train_df):,} rows")
 
     feature_cols = _get_feature_cols(train_df)
     logger.info(f"Feature count: {len(feature_cols)}")

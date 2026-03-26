@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 FEAT_DIR = ROOT / "data" / "features"
 FEAT_FILE = FEAT_DIR / "demand_features.parquet"
 
@@ -99,7 +99,8 @@ DEFAULT_GUARDRAILS = StrategicGuardrails()
 
 def _build_price_grid(face_price: float, step: float = PRICE_GRID_STEP) -> np.ndarray:
     """Generate ±30% price grid in 5% steps around face price."""
-    multipliers = np.arange(1 - PRICE_GRID_RANGE, 1 + PRICE_GRID_RANGE + step, step)
+    # Use step*0.5 as epsilon to avoid float precision causing an extra step beyond +30%
+    multipliers = np.arange(1 - PRICE_GRID_RANGE, 1 + PRICE_GRID_RANGE + step * 0.5, step)
     return np.round(face_price * multipliers, 2)
 
 
@@ -208,7 +209,14 @@ def _apply_guardrails(
             p = max_acquisition
             applied.append("acquisition_mode_cap")
 
-    # 5. Round to nearest $1 for clean pricing
+    # 5. Balanced/aggressive: never go below current face price (only conservative allows lowering)
+    #    Exception: if STH cap is below face (secondary market cold), don't force price above secondary
+    if scenario in ("balanced", "aggressive") and p < face_price:
+        if sold_price_avg and sold_price_avg >= face_price:
+            p = face_price
+            applied.append("min_face_price")
+
+    # 6. Round to nearest $1 for clean pricing
     p = max(floor, round(p))
 
     return p, applied

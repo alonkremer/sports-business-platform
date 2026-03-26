@@ -17,7 +17,7 @@ import pandas as pd
 import numpy as np
 from loguru import logger
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 FEAT_DIR = ROOT / "data" / "features"
 FEAT_FILE = FEAT_DIR / "demand_features.parquet"
 
@@ -60,7 +60,7 @@ def compute_price_gap(
     df["is_overpriced"]     = df["price_gap_abs"] < -5.0   # gap < -$5 = too high
 
     # Revenue opportunity
-    seats_remaining = df["seats_remaining_t7"].fillna(df["capacity"] * 0.15)
+    seats_remaining = df.get("seats_remaining_t7", pd.Series(dtype=float)).reindex(df.index).fillna(df["capacity"] * 0.15)
     df["revenue_opp_total"] = (
         df["price_gap_abs"].clip(lower=0) * seats_remaining
     ).round(2)

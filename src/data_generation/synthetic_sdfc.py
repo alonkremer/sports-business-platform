@@ -29,7 +29,7 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 RAW_DIR  = ROOT / "data" / "raw"
 FEAT_DIR = ROOT / "data" / "features"
 
@@ -380,7 +380,7 @@ def generate_inventory_snapshots(
             prev_sold = 0
             for t in SNAPSHOTS:
                 frac = fill_at_t(t)
-                seats_sold = min(final_fill, int(frac * final_fill))
+                seats_sold = max(prev_sold, min(final_fill, int(frac * final_fill)))
                 seats_remaining = cap - seats_sold
 
                 velocity = (seats_sold - prev_sold) / max(1, (30 - t))

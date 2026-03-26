@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "FastAPI (Pricing Intelligence API)",
+      "runtimeExecutable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "api.main:app", "--reload", "--port", "8000", "--host", "0.0.0.0"],
+      "port": 8000
+    },
+    {
+      "name": "Streamlit (Dashboard)",
+      "runtimeExecutable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "runtimeArgs": ["-m", "streamlit", "run", "dashboard/app.py", "--server.port", "8501", "--browser.gatherUsageStats", "false"],
+      "port": 8501
+    },
+    {
+      "name": "MLflow (Experiment Tracking UI)",
+      "runtimeExecutable": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+      "runtimeArgs": ["-m", "mlflow", "ui", "--backend-store-uri", "mlflow/", "--port", "5000"],
+      "port": 5000
+    }
+  ]
+}

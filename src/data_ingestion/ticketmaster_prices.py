@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 RAW_DIR = ROOT / "data" / "raw"
 OUT_FILE = RAW_DIR / "ticketmaster_prices.csv"
 

@@ -25,7 +25,7 @@ from loguru import logger
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 FEAT_DIR = ROOT / "data" / "features"
 FEAT_FILE = FEAT_DIR / "demand_features.parquet"
 

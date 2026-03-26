@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR  = ROOT / "data"
 DB_PATH   = DATA_DIR / "sdfc_pricing.duckdb"
 FEAT_DIR  = DATA_DIR / "features"
@@ -148,12 +148,13 @@ def _add_group4_market_betting(df: pd.DataFrame) -> pd.DataFrame:
 
 def _add_group5_inventory(df: pd.DataFrame) -> pd.DataFrame:
     """Group 5: Supply & Inventory Features."""
-    df["g5_sell_through_t7"]     = df["sell_through_t7"].fillna(75.0)
-    df["g5_seats_remaining_t7"]  = df["seats_remaining_t7"].fillna(df["capacity"] * 0.15)
-    df["g5_velocity_t7"]         = df["velocity_t7"].fillna(2.0)
-    df["g5_sell_through_t30"]    = df["sell_through_t30"].fillna(40.0)
-    df["g5_velocity_t30"]        = df["velocity_t30"].fillna(0.5)
-    df["g5_is_soldout"]          = df["is_soldout_t7"].fillna(False).astype(int)
+    # Use .get() pattern so missing snapshot columns fall back to sensible defaults
+    df["g5_sell_through_t7"]     = df.get("sell_through_t7",  pd.Series(75.0,  index=df.index)).fillna(75.0)
+    df["g5_seats_remaining_t7"]  = df.get("seats_remaining_t7", pd.Series(dtype=float)).reindex(df.index).fillna(df["capacity"] * 0.15)
+    df["g5_velocity_t7"]         = df.get("velocity_t7",      pd.Series(2.0,   index=df.index)).fillna(2.0)
+    df["g5_sell_through_t30"]    = df.get("sell_through_t30", pd.Series(40.0,  index=df.index)).fillna(40.0)
+    df["g5_velocity_t30"]        = df.get("velocity_t30",     pd.Series(0.5,   index=df.index)).fillna(0.5)
+    df["g5_is_soldout"]          = df.get("is_soldout_t7",    pd.Series(False, index=df.index)).fillna(False).astype(int)
     df["g5_pct_remaining"]       = (df["g5_seats_remaining_t7"] / df["capacity"].replace(0, 1) * 100).round(1)
 
     # Sell-through acceleration (T-7 vs T-30)
@@ -392,7 +393,7 @@ def _select_ml_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
 
     # Add a few key raw fields that are useful directly
     extra_cols = [
-        "game_id", "section", "tier", "season", "date",
+        "game_id", "section", "tier", "season", "date", "capacity", "opponent",
         "face_price", "sold_price_avg", "secondary_premium_pct",
         "market_health", "opportunity_tier",
         "total_revenue_opportunity", "revenue_opp_per_seat",
