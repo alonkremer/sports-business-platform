@@ -290,6 +290,384 @@ def render_season_overview(games_df: pd.DataFrame, gap_data: dict, alerts: list)
 
 # ── View 2: Seat Map ──────────────────────────────────────────────────────────
 
+def _build_stadium_svg(section_data: dict, scenario: str, game_label: str) -> str:
+    """Generate a professional SVG seat map for Snapdragon Stadium."""
+    import math
+
+    W, H = 1000, 710
+    CX, CY = 500, 360   # pitch center in SVG pixels
+    SC = 182             # pixels per data unit (1 unit ≈ 50m)
+
+    def px(dx, dy):
+        """Data coords → SVG pixel coords (y-axis flipped)."""
+        return CX + dx * SC, CY - dy * SC
+
+    def pts(*pairs):
+        """List of (x,y) data pairs → SVG polygon points string."""
+        return " ".join(f"{CX+x*SC:.1f},{CY-y*SC:.1f}" for x, y in pairs)
+
+    # ── Coordinate constants (must match Plotly version) ─────────────────
+    PX0, PX1 = -1.05,  1.05
+    PY0, PY1 = -0.68,  0.68
+    S_Y0, S_Y1   = -1.15, PY0
+    N_FC_Y0, N_FC_Y1 = PY1, 1.12
+    N_OUT_Y1  =  1.38
+    UB_S_Y0   = -1.55
+    CONC_Y1   =  1.65
+    W_X0, W_X1 = -1.60, PX0
+    E_X0, E_X1 =  PX1,  1.60
+    UB_W_X0   = -1.95
+
+    # ── Color helpers ─────────────────────────────────────────────────────
+    TIER_DEFAULT = {
+        "south_side":    "#1B4F9C",
+        "west_end":      "#B91C1C",
+        "north_fc":      "#7C3AED",
+        "north_outer":   "#1B4F9C",
+        "east_end":      "#B91C1C",
+        "supporters_ga": "#374151",
+        "upper_south":   "#2D5FAA",
+        "upper_north":   "#4B5563",
+        "upper_west":    "#5B21B6",
+    }
+    LIGHT_FILLS = {"#60A5FA", "#FCA5A5", "#E8EDF5"}
+
+    def sec_fill(grp, tier):
+        d = section_data.get(grp, {})
+        if not d:
+            return TIER_DEFAULT.get(tier, "#6B7280")
+        p = d.get("price_change_pct", 0)
+        if p > 15:  return "#1E3A8A"
+        if p > 5:   return "#60A5FA"
+        if p < -15: return "#DC2626"
+        if p < -5:  return "#FCA5A5"
+        return "#E8EDF5"
+
+    def txt_col(fill):
+        return "#1F2937" if fill in LIGHT_FILLS else "#FFFFFF"
+
+    def hover_html(lbl, grp, tier):
+        d = section_data.get(grp, {})
+        if not d:
+            return f"Section {lbl} | {tier.replace('_',' ').title()}"
+        face  = d.get("face_price", 0)
+        scen  = d.get("scenario_price", face)
+        pchg  = d.get("price_change_pct", 0)
+        ap    = abs(pchg)
+        conf  = 5 if ap > 18 else (4 if ap > 10 else (3 if ap > 6 else (2 if ap > 3 else 4)))
+        if pchg > 15:   rec = "Price increase recommended"
+        elif pchg > 5:  rec = "Slight price increase recommended"
+        elif pchg < -15:rec = "Price decrease recommended"
+        elif pchg < -5: rec = "Slight price decrease recommended"
+        else:           rec = "No change recommended"
+        lo, hi = scen * 0.96, scen * 1.04
+        dots = "●" * conf + "○" * (5 - conf)
+        return f"Section {lbl} | {rec} | ${lo:.0f}–${hi:.0f} | Confidence {dots} {conf}/5"
+
+    # ── Row-line helper ───────────────────────────────────────────────────
+    def row_lines(x0, x1, y0, y1, n_rows, taper=0.0, axis="h", fill="#fff"):
+        """Draw evenly-spaced row marker lines inside a section.
+        axis='h': horizontal lines (sideline sections)
+        axis='v': vertical lines (goal-end sections)
+        taper: how much the inner edge narrows (for trapezoidal south sections)
+        """
+        lines = []
+        alpha = "0.18"
+        color = f"rgba(255,255,255,{alpha})"
+        for r in range(1, n_rows):
+            if axis == "h":
+                t = r / n_rows  # 0 at outer (y0), 1 at inner (y1)
+                dy = y0 + t * (y1 - y0)
+                # interpolate x bounds for tapered sections
+                lx = x0 + t * taper
+                rx = x1 - t * taper
+                x0s, y0s = px(lx, dy)
+                x1s, y1s = px(rx, dy)
+                lines.append(f'<line x1="{x0s:.1f}" y1="{y0s:.1f}" x2="{x1s:.1f}" y2="{y1s:.1f}" stroke="{color}" stroke-width="0.9"/>')
+            else:  # vertical
+                t = r / n_rows
+                dx = x0 + t * (x1 - x0)
+                x0s, y0s = px(dx, y0)
+                x1s, y1s = px(dx, y1)
+                lines.append(f'<line x1="{x0s:.1f}" y1="{y0s:.1f}" x2="{x1s:.1f}" y2="{y1s:.1f}" stroke="{color}" stroke-width="0.9"/>')
+        return "\n    ".join(lines)
+
+    # ── Section builder ───────────────────────────────────────────────────
+    sections_svg = []
+
+    def add_rect_section(lbl, grp, tier, x0, x1, y0, y1, n_rows=18, row_axis="h", show_label=True):
+        fill = sec_fill(grp, tier)
+        tc   = txt_col(fill)
+        tip  = hover_html(lbl, grp, tier)
+        d    = section_data.get(grp, {})
+        price_txt = f"${d.get('scenario_price', d.get('face_price', 0)):.0f}" if d else lbl.split("\n")[0][:5]
+        mx, my = px((x0+x1)/2, (y0+y1)/2)
+        poly_pts = pts((x0,y0),(x1,y0),(x1,y1),(x0,y1))
+        rows_svg = row_lines(x0, x1, y0, y1, n_rows, axis=row_axis)
+        w_units = abs(x1-x0)
+        h_units = abs(y1-y0)
+        label_svg = ""
+        if show_label and w_units > 0.08 and h_units > 0.05:
+            fsz = 10 if w_units > 0.16 and h_units > 0.10 else 7
+            label_svg = f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" dominant-baseline="middle" fill="{tc}" font-size="{fsz}" font-family="Arial" font-weight="bold" pointer-events="none">{price_txt}</text>'
+        sections_svg.append(f"""
+  <g class="sec" data-tip="{tip}">
+    <polygon points="{poly_pts}" fill="{fill}" stroke="rgba(255,255,255,0.6)" stroke-width="0.8"/>
+    {rows_svg}
+    {label_svg}
+  </g>""")
+
+    def add_trap_section(lbl, grp, tier, x0, x1, y0, y1, taper=0.03, side="south", n_rows=22, show_label=True):
+        """Trapezoidal section: outer edge full width, inner edge narrowed by taper."""
+        fill = sec_fill(grp, tier)
+        tc   = txt_col(fill)
+        tip  = hover_html(lbl, grp, tier)
+        d    = section_data.get(grp, {})
+        price_txt = f"${d.get('scenario_price', d.get('face_price', 0)):.0f}" if d else lbl.split("\n")[0][:5]
+        mx, my = px((x0+x1)/2, (y0+y1)/2)
+        if side == "south":
+            # outer = y0 (full width), inner = y1 (narrowed)
+            poly_pts = pts((x0,y0),(x1,y0),(x1-taper,y1),(x0+taper,y1))
+        else:  # north
+            # inner = y0 (narrowed), outer = y1 (full width)
+            poly_pts = pts((x0+taper,y0),(x1-taper,y0),(x1,y1),(x0,y1))
+        rows_svg = row_lines(x0, x1, y0, y1, n_rows, taper=taper if side=="south" else 0, axis="h")
+        w_units = abs(x1-x0)
+        h_units = abs(y1-y0)
+        label_svg = ""
+        if show_label and w_units > 0.08 and h_units > 0.05:
+            fsz = 10 if w_units > 0.16 and h_units > 0.10 else 7
+            label_svg = f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" dominant-baseline="middle" fill="{tc}" font-size="{fsz}" font-family="Arial" font-weight="bold" pointer-events="none">{price_txt}</text>'
+        sections_svg.append(f"""
+  <g class="sec" data-tip="{tip}">
+    <polygon points="{poly_pts}" fill="{fill}" stroke="rgba(255,255,255,0.6)" stroke-width="0.8"/>
+    {rows_svg}
+    {label_svg}
+  </g>""")
+
+    # ── Build all sections ────────────────────────────────────────────────
+
+    # South sideline (101-113, 11 sections, trapezoidal)
+    _s_xs  = [1.15, 0.94, 0.73, 0.52, 0.31, 0.10, -0.10, -0.31, -0.52, -0.73, -0.94, -1.15]
+    _s_lbl = ["101","102","103","104","105","108","109","110","111","112","113"]
+    _s_grp = ["LB_101_105"]*5 + ["LB_106_110"]*3 + ["LB_111_115"]*3
+    for i in range(11):
+        add_trap_section(_s_lbl[i], _s_grp[i], "south_side",
+                         _s_xs[i+1], _s_xs[i], S_Y0, S_Y1, taper=0.025, side="south", n_rows=24)
+
+    # South premium inner strip C106-C108
+    _cfc_s = [-0.31, -0.10, 0.10, 0.31]
+    for i, lbl in enumerate(["C106","C107","C108"]):
+        add_trap_section(lbl, "LB_106_110", "north_fc",
+                         _cfc_s[i], _cfc_s[i+1], S_Y1, S_Y1+0.10, taper=0.01, side="south", n_rows=4)
+
+    # West goal end (114-123, 10 sections, rectangular with vertical rows)
+    _w_ys = [-0.68 + i*(1.36/10) for i in range(11)]
+    _w_lbl = ["114","115","116","117","118","119","120","121","122","123"]
+    _w_grp = ["LB_111_115"]*2 + ["LB_116_120"]*5 + ["LB_121_123"]*3
+    for i in range(10):
+        add_rect_section(_w_lbl[i], _w_grp[i], "west_end",
+                         W_X0, W_X1, _w_ys[i], _w_ys[i+1], n_rows=16, row_axis="v")
+
+    # North field club C124-C132 (trapezoidal, north side)
+    _fc_x = [-1.05 + i*(2.10/9) for i in range(10)]
+    for i in range(9):
+        add_trap_section(f"C{124+i}", "FC_C124_C132", "north_fc",
+                         _fc_x[i], _fc_x[i+1], N_FC_Y0, N_FC_Y1, taper=0.025, side="north", n_rows=18)
+
+    # North outer 133-135
+    for lbl, grp, x0, x1 in [("133","LB_133_135",0.52,0.73),
+                               ("134","LB_133_135",0.73,0.95),
+                               ("135","LB_133_135",0.95,1.15)]:
+        add_trap_section(lbl, grp, "north_outer", x0, x1, N_FC_Y0, N_OUT_Y1, taper=0.02, side="north", n_rows=20)
+
+    # East goal end
+    add_rect_section("135",            "LB_133_135", "east_end",   E_X0, E_X1,  0.68,  0.95, n_rows=8,  row_axis="v")
+    add_rect_section("Supporters GA",  "GA_136_140", "supporters_ga", E_X0, E_X1, -0.50, 0.68, n_rows=20, row_axis="v")
+    add_rect_section("141",            "LB_141",     "east_end",   E_X0, E_X1, -0.95, -0.50, n_rows=10, row_axis="v")
+
+    # Upper bowl south (202-212)
+    _ub_dx = 2.30/11
+    _ub_lbl = ["202","203","204","205","206","207","208","209","210","211","212"]
+    _ub_grp = ["UB_202_207"]*6 + ["UB_208_212"]*5
+    for i in range(11):
+        x0 = -1.15 + i*_ub_dx
+        add_rect_section(_ub_lbl[i], _ub_grp[i], "upper_south",
+                         x0, x0+_ub_dx, UB_S_Y0, S_Y0-0.05, n_rows=14, row_axis="h")
+
+    # Concourse north (323-333)
+    _cn_lbl = ["323","324","325","326","327","328","329","330","331","332","333"]
+    for i, lbl in enumerate(_cn_lbl):
+        x0 = -1.15 + i*_ub_dx
+        add_rect_section(lbl, "UC_323_334", "upper_north",
+                         x0, x0+_ub_dx, N_OUT_Y1+0.05, CONC_Y1, n_rows=12, row_axis="h")
+
+    # West upper club (C223-C231)
+    _wc_dy = 2.30/9
+    for i in range(9):
+        y0 = -1.15 + i*_wc_dy
+        add_rect_section(f"C{223+i}", "WC_C223_C231", "upper_west",
+                         UB_W_X0, W_X0-0.05, y0, y0+_wc_dy, n_rows=10, row_axis="v")
+
+    # ── Pitch markings ────────────────────────────────────────────────────
+    def pitch_line(x0d, y0d, x1d, y1d):
+        ax, ay = px(x0d, y0d)
+        bx, by = px(x1d, y1d)
+        return f'<line x1="{ax:.1f}" y1="{ay:.1f}" x2="{bx:.1f}" y2="{by:.1f}" stroke="rgba(255,255,255,0.85)" stroke-width="1.5"/>'
+
+    def pitch_rect(x0d, y0d, x1d, y1d, filled=False, fill_color="none"):
+        ax, ay = px(x0d, y1d)  # top-left in SVG (y1 is north = top)
+        bx, by = px(x1d, y0d)  # bottom-right
+        rw, rh = bx-ax, by-ay
+        fc = fill_color if filled else "none"
+        return f'<rect x="{ax:.1f}" y="{ay:.1f}" width="{rw:.1f}" height="{rh:.1f}" fill="{fc}" stroke="rgba(255,255,255,0.85)" stroke-width="1.5"/>'
+
+    def pitch_circle(cxd, cyd, rd):
+        sx, sy = px(cxd, cyd)
+        r_px = rd * SC
+        return f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="{r_px:.1f}" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="1.5"/>'
+
+    # Pitch background with stripes
+    psx, psy = px(PX0, PY1)
+    pex, pey = px(PX1, PY0)
+    pitch_w, pitch_h = pex-psx, pey-psy
+    n_stripes = 10
+    stripe_w = pitch_w / n_stripes
+    stripes_svg = ""
+    for i in range(n_stripes):
+        col = "#2e7d32" if i % 2 == 0 else "#388e3c"
+        stripes_svg += f'<rect x="{psx+i*stripe_w:.1f}" y="{psy:.1f}" width="{stripe_w:.1f}" height="{pitch_h:.1f}" fill="{col}"/>'
+
+    pitch_svg_parts = [
+        # Outer pitch boundary
+        f'<rect x="{psx:.1f}" y="{psy:.1f}" width="{pitch_w:.1f}" height="{pitch_h:.1f}" fill="none" stroke="rgba(255,255,255,0.9)" stroke-width="2"/>',
+        # Halfway line
+        pitch_line(0, PY0, 0, PY1),
+        # Center circle
+        pitch_circle(0, 0, 0.183),
+        # Center spot
+        f'<circle cx="{CX:.1f}" cy="{CY:.1f}" r="3" fill="rgba(255,255,255,0.9)"/>',
+        # Penalty boxes
+        pitch_rect(PX0, -0.275, PX0+0.305, 0.275),
+        pitch_rect(PX1-0.305, -0.275, PX1, 0.275),
+        # Six-yard boxes
+        pitch_rect(PX0, -0.110, PX0+0.110, 0.110),
+        pitch_rect(PX1-0.110, -0.110, PX1, 0.110),
+        # Goals
+        pitch_rect(PX0-0.07, -0.09, PX0, 0.09, filled=True, fill_color="rgba(255,255,255,0.25)"),
+        pitch_rect(PX1, -0.09, PX1+0.07, 0.09, filled=True, fill_color="rgba(255,255,255,0.25)"),
+    ]
+    # Corner arcs
+    for cx_d, cy_d, a_start, a_end in [(PX0,PY0,0,90),(PX1,PY0,90,180),(PX1,PY1,180,270),(PX0,PY1,270,360)]:
+        sx2, sy2 = px(cx_d, cy_d)
+        r2 = 0.10 * SC
+        a1, a2 = math.radians(a_start), math.radians(a_end)
+        ax2 = sx2 + r2*math.cos(a1); ay2 = sy2 + r2*math.sin(a1)
+        bx2 = sx2 + r2*math.cos(a2); by2 = sy2 + r2*math.sin(a2)
+        pitch_svg_parts.append(f'<path d="M {sx2:.1f},{sy2:.1f} L {ax2:.1f},{ay2:.1f} A {r2:.1f},{r2:.1f} 0 0,1 {bx2:.1f},{by2:.1f} Z" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.2"/>')
+
+    # ── Orientation / area labels ─────────────────────────────────────────
+    def label(text, dx, dy, size=11, color="#888", weight="normal", anchor="middle"):
+        lx, ly = px(dx, dy)
+        return f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="{anchor}" dominant-baseline="middle" fill="{color}" font-size="{size}" font-family="Arial" font-weight="{weight}" pointer-events="none">{text}</text>'
+
+    area_labels = [
+        label("NORTH — Field Club",  0,     1.75, 10, "#aaa"),
+        label("SOUTH SIDELINE",      0,    -1.74, 10, "#aaa"),
+        label("WEST\nGoal End",     -1.78,  0.08, 8,  "#aaa"),
+        label("EAST\nSupporters",    1.78,  0.08, 8,  "#aaa"),
+        label("Sycuan Founders Club",-1.28, 0.0,  7,  "#ccc", "italic"),
+        label("Toyota Terrace",       0,    1.53,  7,  "#bbb", "italic"),
+        label("Sandbox",              1.28, -0.15, 7,  "#bbb", "italic"),
+    ]
+
+    # ── Assemble SVG ──────────────────────────────────────────────────────
+    outer_rx = 35
+    bowl_x0, bowl_y0 = px(-1.98, 1.68)
+    bowl_x1, bowl_y1 = px( 1.98,-1.68)
+
+    svg = f"""<svg id="stadiumSvg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">
+<defs>
+  <style>
+    .sec {{ cursor:pointer; }}
+    .sec polygon, .sec rect {{ transition: filter 0.15s, opacity 0.15s; }}
+    .sec:hover polygon, .sec:hover rect {{ filter: brightness(1.25); opacity:0.88; }}
+    #ttbox {{ pointer-events:none; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }}
+  </style>
+</defs>
+
+<!-- Outer background -->
+<rect x="5" y="5" width="{W-10}" height="{H-10}" rx="{outer_rx}" fill="#1a1c2e" stroke="#2a2c3e" stroke-width="1.5"/>
+
+<!-- Bowl background -->
+<rect x="{bowl_x0:.1f}" y="{bowl_y0:.1f}" width="{bowl_x1-bowl_x0:.1f}" height="{bowl_y1-bowl_y0:.1f}" rx="20" fill="#262840" stroke="#3a3c50" stroke-width="1.5"/>
+
+<!-- Stadium sections -->
+{''.join(sections_svg)}
+
+<!-- Pitch stripes -->
+{stripes_svg}
+
+<!-- Pitch markings -->
+{''.join(pitch_svg_parts)}
+
+<!-- Area labels -->
+{''.join(area_labels)}
+
+<!-- Tooltip -->
+<g id="ttbox" visibility="hidden">
+  <rect id="ttrect" x="0" y="0" width="10" height="30" rx="4" fill="rgba(15,15,25,0.92)" stroke="#555" stroke-width="1"/>
+  <text id="tttext" x="0" y="0" fill="#eee" font-size="11" font-family="Arial"/>
+</g>
+</svg>
+
+<script>
+(function(){{
+  var svg = document.getElementById('stadiumSvg');
+  var ttbox = document.getElementById('ttbox');
+  var ttrect = document.getElementById('ttrect');
+  var tttext = document.getElementById('tttext');
+  var sections = svg.querySelectorAll('.sec');
+  sections.forEach(function(s){{
+    s.addEventListener('mouseenter', function(e){{
+      var tip = s.getAttribute('data-tip');
+      tttext.textContent = tip;
+      ttbox.setAttribute('visibility','visible');
+      var bbox = tttext.getBBox();
+      var pad = 8;
+      ttrect.setAttribute('x', bbox.x - pad);
+      ttrect.setAttribute('y', bbox.y - pad);
+      ttrect.setAttribute('width',  bbox.width  + pad*2);
+      ttrect.setAttribute('height', bbox.height + pad*2);
+    }});
+    s.addEventListener('mousemove', function(e){{
+      var pt = svg.createSVGPoint();
+      pt.x = e.clientX; pt.y = e.clientY;
+      var svgPt = pt.matrixTransform(svg.getScreenCTM().inverse());
+      var tx = svgPt.x + 12, ty = svgPt.y - 10;
+      tttext.setAttribute('x', tx + 8);
+      tttext.setAttribute('y', ty + 16);
+      var bbox = tttext.getBBox();
+      var pad = 8;
+      ttrect.setAttribute('x', bbox.x - pad);
+      ttrect.setAttribute('y', bbox.y - pad);
+      ttrect.setAttribute('width',  bbox.width  + pad*2);
+      ttrect.setAttribute('height', bbox.height + pad*2);
+    }});
+    s.addEventListener('mouseleave', function(){{
+      ttbox.setAttribute('visibility','hidden');
+    }});
+  }});
+}})();
+</script>"""
+
+    title = f"Snapdragon Stadium — {game_label} | {scenario.title()} Scenario"
+    return f"""<div style="background:#0f1020;border-radius:12px;padding:12px;font-family:Arial">
+  <div style="text-align:center;color:#ccc;font-size:13px;font-weight:600;margin-bottom:8px">{title}</div>
+  {svg}
+</div>"""
+
+
 def render_seat_map():
     st.title("Stadium Seat Map — Snapdragon Stadium")
 
@@ -353,318 +731,19 @@ def render_seat_map():
                 "sell_through": scen.get("expected_sell_through", 80),
             }
 
-    # ── Snapdragon Stadium — top-down seat map ───────────────────────────────────
-    # Pitch runs LANDSCAPE (goals at east=right and west=left).
-    # South (bottom) = sideline 101-113.  North (top) = field club C124-C132 + 133-135.
-    # West (left) = goal end 114-123 (PIERS premium).  East (right) = supporters GA + 141.
-    # Goal ends are the SHORT sides — narrower x-extent than sideline depth.
-
-    def _R(x0, x1, y0, y1):
-        """Closed rectangle as Scatter polygon coords."""
-        return [x0, x1, x1, x0, x0], [y0, y0, y1, y1, y0]
-
-    def _T(x0_out, x1_out, y0, y1, taper=0.04, axis="y"):
-        """Trapezoid that tapers slightly on the inner edge (toward pitch).
-        axis='y': south/north sections — inner edge is at y1 (north) or y0 (south).
-        axis='x': west/east sections — tapers not currently used.
-        Returns xs, ys for a closed polygon."""
-        # For south sections: y0=outer, y1=inner (closer to pitch) → taper at y1
-        # For north sections: y0=inner (closer to pitch), y1=outer → taper at y0
-        if axis == "south":
-            # outer edge full width, inner edge narrowed
-            xs = [x0_out, x1_out, x1_out - taper, x0_out + taper, x0_out]
-            ys = [y0,     y0,     y1,              y1,             y0]
-        elif axis == "north":
-            # inner edge (y0) narrowed, outer edge (y1) full width
-            xs = [x0_out + taper, x1_out - taper, x1_out, x0_out, x0_out + taper]
-            ys = [y0,             y0,              y1,     y1,     y0]
-        else:
-            xs, ys = _R(x0_out, x1_out, y0, y1)
-        return xs, ys
-
-    # SD FC tier colors (default when no API pricing data)
-    TIER_FILL = {
-        "south_side":      "#002F6C",  # SD FC navy — south sideline (101-113)
-        "west_end":        "#C8102E",  # SD FC red  — west goal end (114-123)
-        "north_fc":        "#6B21A8",  # purple     — north field club (C124-C132)
-        "north_outer":     "#002F6C",  # SD FC navy — north outer (133-135)
-        "east_end":        "#C8102E",  # SD FC red  — east goal end
-        "supporters_ga":   "#1F2937",  # very dark  — supporters GA
-        "upper_south":     "#1E3A6E",  # deep steel — upper bowl south (202-212)
-        "upper_north":     "#4B5563",  # mid gray   — concourse north (323-333)
-        "upper_west":      "#4C1D95",  # deep purple— west club (C223-C231)
-    }
-
-    # ── Coordinate System (scale: 1 unit ≈ 50m) ────────────────────────────────
-    # Soccer pitch 105m × 68m → 2.10 × 1.36 units (ratio 1.544 ✓)
-    PX0, PX1    = -1.05,  1.05   # pitch west / east edge
-    PY0, PY1    = -0.68,  0.68   # pitch south / north edge
-
-    # South sideline band (lower bowl)
-    S_Y0, S_Y1  = -1.15,  PY0   # 0.47 units deep
-
-    # North field club + outer (symmetric to south)
-    N_FC_Y0     =  PY1          # inner edge = pitch north
-    N_FC_Y1     =  1.12         # outer edge of field club (0.44 units deep)
-    N_OUT_Y1    =  1.38         # outer edge of north upper rows
-
-    # Upper bowl / concourse
-    UB_S_Y0     = -1.55         # upper south outer
-    CONC_Y1     =  1.65         # concourse north outer
-
-    # Goal ends (wider — 0.55 units each)
-    W_X0, W_X1  = -1.60,  PX0  # west end
-    E_X0, E_X1  =  PX1,   1.60 # east end
-
-    # West upper club
-    UB_W_X0     = -1.95         # west upper club outer
-
-    # ── Section definitions: (label, group_key, shape_type, geom, tier) ─────────
-    # shape_type: "rect", "trap_south", "trap_north"
-    # geom for rect/trap: (x0, x1, y0, y1)
-    SECS = []  # (lbl, grp, shape, x0, x1, y0, y1, tier)
-
-    # South sideline — 101 (east/right) → 113 (west/left), 11 sections
-    _s_xs  = [1.15, 0.94, 0.73, 0.52, 0.31, 0.10, -0.10, -0.31, -0.52, -0.73, -0.94, -1.15]
-    _s_lbl = ["101","102","103","104","105","108","109","110","111","112","113"]
-    _s_grp = ["LB_101_105"]*5 + ["LB_106_110"]*3 + ["LB_111_115"]*3
-    for i in range(11):
-        SECS.append((_s_lbl[i], _s_grp[i], "trap_south",
-                     _s_xs[i+1], _s_xs[i], S_Y0, S_Y1, "south_side"))
-
-    # South premium inner strip C106-C108
-    _cfc_s_xs = [-0.27, 0.00, 0.27, 0.50]
-    for i, lbl in enumerate(["C106","C107","C108"]):
-        SECS.append((lbl, "LB_106_110", "trap_south",
-                     _cfc_s_xs[i], _cfc_s_xs[i+1],
-                     S_Y1, S_Y1 + 0.10, "north_fc"))
-
-    # West goal end — 114 (south) → 123 (north), 10 sections
-    _w_ys  = [-0.68 + i * (1.36/10) for i in range(11)]
-    _w_lbl = ["114","115","116","117","118","119","120","121","122","123"]
-    _w_grp = ["LB_111_115"]*2 + ["LB_116_120"]*5 + ["LB_121_123"]*3
-    for i in range(10):
-        SECS.append((_w_lbl[i], _w_grp[i], "rect",
-                     W_X0, W_X1, _w_ys[i], _w_ys[i+1], "west_end"))
-
-    # North field club — C124 (west) → C132 (east), premium pitch-side strip
-    _fc_x  = [-1.05 + i * (2.10/9) for i in range(10)]
-    for i in range(9):
-        SECS.append((f"C{124+i}", "FC_C124_C132", "trap_north",
-                     _fc_x[i], _fc_x[i+1], N_FC_Y0, N_FC_Y1, "north_fc"))
-
-    # North outer — 133, 134, 135 (east end of north stand)
-    for lbl, grp, x0, x1 in [("133","LB_133_135", 0.50, 0.73),
-                               ("134","LB_133_135", 0.73, 0.95),
-                               ("135","LB_133_135", 0.95, 1.15)]:
-        SECS.append((lbl, grp, "trap_north", x0, x1, N_FC_Y0, N_OUT_Y1, "north_outer"))
-
-    # East goal end — 135 (north corner), Supporters GA, 141 (south corner)
-    SECS.append(("135",            "LB_133_135", "rect",
-                 E_X0, E_X1,  0.68,  0.95, "east_end"))
-    SECS.append(("Supporters\nGA", "GA_136_140", "rect",
-                 E_X0, E_X1, -0.50,  0.68, "supporters_ga"))
-    SECS.append(("141",            "LB_141",     "rect",
-                 E_X0, E_X1, -0.95, -0.50, "east_end"))
-
-    # Upper bowl south — 202-212, 11 sections
-    _ub_dx   = 2.30 / 11
-    _ub_lbls = ["202","203","204","205","206","207","208","209","210","211","212"]
-    _ub_grps = ["UB_202_207"]*6 + ["UB_208_212"]*5
-    for i in range(11):
-        x0 = -1.15 + i * _ub_dx
-        SECS.append((_ub_lbls[i], _ub_grps[i], "rect",
-                     x0, x0 + _ub_dx, UB_S_Y0, S_Y0 - 0.05, "upper_south"))
-
-    # Concourse north — 323-333, 11 sections
-    _cn_lbls = ["323","324","325","326","327","328","329","330","331","332","333"]
-    for i, lbl in enumerate(_cn_lbls):
-        x0 = -1.15 + i * _ub_dx
-        SECS.append((lbl, "UC_323_334", "rect",
-                     x0, x0 + _ub_dx, N_OUT_Y1 + 0.05, CONC_Y1, "upper_north"))
-
-    # West upper club — C223-C231 (narrow strip on far left)
-    _wc_dy = 2.30 / 9
-    for i in range(9):
-        y0 = -1.15 + i * _wc_dy
-        SECS.append((f"C{223+i}", "WC_C223_C231", "rect",
-                     UB_W_X0, W_X0 - 0.05, y0, y0 + _wc_dy, "upper_west"))
-
-    # ── Build figure ────────────────────────────────────────────────────────────
-    fig = go.Figure()
-
-    # Outer background (very light gray — outside stadium)
-    fig.add_shape(type="rect", x0=-2.10, x1=2.10, y0=-1.80, y1=1.80,
-                  fillcolor="#e8e8e8", line=dict(width=0), layer="below")
-
-    # Stadium bowl background (slightly darker rounded-rect approximation)
-    fig.add_shape(type="rect", x0=-1.98, x1=1.98, y0=-1.68, y1=1.68,
-                  fillcolor="#d0d0d0", line=dict(color="#b0b0b0", width=2),
-                  layer="below")
-
-    # Pitch surface
-    fig.add_shape(type="rect", x0=PX0, x1=PX1, y0=PY0, y1=PY1,
-                  fillcolor="#3a8a3a", line=dict(color="#2a6a2a", width=2),
-                  layer="below")
-    # Halfway line
-    fig.add_shape(type="line", x0=0, y0=PY0, x1=0, y1=PY1,
-                  line=dict(color="#5ab05a", width=1.5))
-    # Center circle
-    fig.add_shape(type="circle", x0=-0.18, y0=-0.22, x1=0.18, y1=0.22,
-                  line=dict(color="#5ab05a", width=1.5))
-    # Center spot
-    fig.add_shape(type="circle", x0=-0.015, y0=-0.017, x1=0.015, y1=0.017,
-                  fillcolor="#5ab05a", line=dict(width=0))
-    # Corner arcs (small quarter-circles approximated as small filled circles)
-    for cx, cy in [(PX0, PY0), (PX0, PY1), (PX1, PY0), (PX1, PY1)]:
-        r = 0.04
-        fig.add_shape(type="circle", x0=cx-r, y0=cy-r, x1=cx+r, y1=cy+r,
-                      line=dict(color="#5ab05a", width=1.2))
-    # Penalty boxes
-    fig.add_shape(type="rect", x0=PX0,      x1=PX0+0.30, y0=-0.28, y1=0.28,
-                  line=dict(color="#5ab05a", width=1.2), fillcolor="rgba(0,0,0,0)")
-    fig.add_shape(type="rect", x0=PX1-0.30, x1=PX1,      y0=-0.28, y1=0.28,
-                  line=dict(color="#5ab05a", width=1.2), fillcolor="rgba(0,0,0,0)")
-    # Six-yard boxes
-    fig.add_shape(type="rect", x0=PX0,      x1=PX0+0.11, y0=-0.11, y1=0.11,
-                  line=dict(color="#5ab05a", width=0.8), fillcolor="rgba(0,0,0,0)")
-    fig.add_shape(type="rect", x0=PX1-0.11, x1=PX1,      y0=-0.11, y1=0.11,
-                  line=dict(color="#5ab05a", width=0.8), fillcolor="rgba(0,0,0,0)")
-    # Goal nets
-    fig.add_shape(type="rect", x0=PX0-0.07, x1=PX0, y0=-0.09, y1=0.09,
-                  fillcolor="#4a9a4a", line=dict(color="#3a8a3a", width=0.8))
-    fig.add_shape(type="rect", x0=PX1,      x1=PX1+0.07, y0=-0.09, y1=0.09,
-                  fillcolor="#4a9a4a", line=dict(color="#3a8a3a", width=0.8))
-
-    # ── Draw every section ──────────────────────────────────────────────────────
-    for (lbl, grp, shape, sx0, sx1, sy0, sy1, tier) in SECS:
-        d = section_data.get(grp, {})
-        has_data = bool(d)
-
-        if has_data:
-            pchg = d.get("price_change_pct", 0)
-            if pchg > 15:       fill = "#1E3A8A"   # deep navy  — price increase recommended
-            elif pchg > 5:      fill = "#93C5FD"   # light blue — slight increase recommended
-            elif pchg < -15:    fill = "#DC2626"   # red        — price decrease recommended
-            elif pchg < -5:     fill = "#FCA5A5"   # light pink — slight decrease recommended
-            else:               fill = "#F1F5F9"   # off-white  — no change recommended
-        else:
-            fill = TIER_FILL.get(tier, "#9CA3AF")
-
-        if shape == "trap_south":
-            px_poly, py_poly = _T(sx0, sx1, sy0, sy1, taper=0.03, axis="south")
-        elif shape == "trap_north":
-            px_poly, py_poly = _T(sx0, sx1, sy0, sy1, taper=0.025, axis="north")
-        else:
-            px_poly, py_poly = _R(sx0, sx1, sy0, sy1)
-
-        face   = d.get("face_price", 0)
-        scen_p = d.get("scenario_price", face)
-        pchg_v = d.get("price_change_pct", 0)
-        health = d.get("market_health", "")
-
-        # $ range: recommended price ±4%
-        rng_lo = scen_p * 0.96
-        rng_hi = scen_p * 1.04
-
-        # Confidence 1–5 based on signal strength
-        ap = abs(pchg_v)
-        if ap < 3:    conf = 4   # clearly near optimal
-        elif ap < 6:  conf = 2
-        elif ap < 10: conf = 3
-        elif ap < 18: conf = 4
-        else:         conf = 5
-        conf_color = "#DC2626" if conf <= 2 else ("#FBBF24" if conf == 3 else "#10B981")
-
-        # Recommendation label
-        if pchg_v > 15:     rec_label = "Price increase recommended"
-        elif pchg_v > 5:    rec_label = "Slight price increase recommended"
-        elif pchg_v < -15:  rec_label = "Price decrease recommended"
-        elif pchg_v < -5:   rec_label = "Slight price decrease recommended"
-        else:               rec_label = "No change recommended"
-
-        hover = (
-            f"<b>Section {lbl.replace(chr(10), ' ')}</b><br>"
-            + (f"Current: ${face:.0f} → Recommended: ${rng_lo:.0f}–${rng_hi:.0f}<br>"
-               f"{rec_label} ({pchg_v:+.1f}%)<br>"
-               f"Confidence: {'●' * conf}{'○' * (5 - conf)} {conf}/5 | "
-               f"STH: {'✓' if d.get('sth_healthy', True) else '⚠ Risk'}"
-               if has_data else tier)
-        )
-
-        fig.add_trace(go.Scatter(
-            x=px_poly, y=py_poly,
-            fill="toself", fillcolor=fill,
-            line=dict(color="#ffffff", width=0.8),
-            mode="lines", opacity=0.93,
-            hovertemplate=hover + "<extra></extra>",
-            showlegend=False,
-        ))
-
-        # Label — section number or scenario price
-        lx = (sx0 + sx1) / 2
-        ly = (sy0 + sy1) / 2
-        sw = abs(sx1 - sx0)
-        sh = abs(sy1 - sy0)
-        if sw > 0.09 and sh > 0.06:
-            txt = f"${scen_p:.0f}" if has_data else lbl.split("\n")[0][:5]
-            fsize = 9 if sw > 0.18 and sh > 0.18 else 7
-            # Light fills need dark text
-            txt_color = "#1F2937" if fill in ("#93C5FD", "#F1F5F9", "#FCA5A5") else "white"
-            fig.add_annotation(
-                x=lx, y=ly, text=txt, showarrow=False,
-                font=dict(size=fsize, color=txt_color, family="Arial Black"),
-            )
-
-    # ── Premium area named labels ────────────────────────────────────────────────
-    fig.add_annotation(x=-1.30, y=0.0, text="<i>Sycuan<br>Founders<br>Club</i>",
-                       font=dict(size=7, color="#fff"), showarrow=False,
-                       align="center")
-    fig.add_annotation(x=0, y=1.53, text="<i>Toyota Terrace</i>",
-                       font=dict(size=7.5, color="#444"), showarrow=False)
-    fig.add_annotation(x=1.30, y=0.0, text="<i>Sandbox</i>",
-                       font=dict(size=7, color="#ddd"), showarrow=False)
-
-    # ── Orientation labels ───────────────────────────────────────────────────────
-    fig.add_annotation(x=0,     y=-1.80, text="SOUTH SIDELINE",
-                       font=dict(size=9, color="#555"), showarrow=False)
-    fig.add_annotation(x=0,     y= 1.80, text="NORTH — Field Club",
-                       font=dict(size=9, color="#555"), showarrow=False)
-    fig.add_annotation(x=-1.78, y=0,    text="WEST\nGoal End\n(Premium)",
-                       font=dict(size=7.5, color="#555"), showarrow=False)
-    fig.add_annotation(x= 1.78, y=0,    text="EAST\nGoal End\n(Supporters)",
-                       font=dict(size=7.5, color="#555"), showarrow=False)
-
-    fig.update_layout(
-        title=dict(
-            text=f"Snapdragon Stadium — {selected_game_label} | {scenario.title()} Scenario",
-            font=dict(size=14), x=0.5,
-        ),
-        xaxis=dict(range=[-2.15, 2.15], showticklabels=False, showgrid=False,
-                   zeroline=False, fixedrange=True),
-        yaxis=dict(range=[-1.85, 1.85], showticklabels=False, showgrid=False,
-                   zeroline=False, fixedrange=True, scaleanchor="x"),
-        height=720,
-        margin=dict(l=5, r=5, t=50, b=5),
-        plot_bgcolor="#f0f0f0",
-        paper_bgcolor="rgba(0,0,0,0)",
-        hovermode="closest",
-    )
-
-    # Legend
-    # Recommendation legend items — (bg_color, text_color, label)
+    # ── Legend pills ─────────────────────────────────────────────────────────────
     rec_legend = [
         ("#1E3A8A", "white",   "Price increase recommended"),
-        ("#93C5FD", "#1F2937", "Slight price increase recommended"),
-        ("#F1F5F9", "#374151", "No change recommended"),
+        ("#60A5FA", "#1F2937", "Slight price increase recommended"),
+        ("#E8EDF5", "#374151", "No change recommended"),
         ("#FCA5A5", "#7F1D1D", "Slight price decrease recommended"),
         ("#DC2626", "white",   "Price decrease recommended"),
     ]
     tier_legend = [
-        (TIER_FILL["west_end"],      "white",   "Goal end"),
-        (TIER_FILL["south_side"],    "white",   "Sideline"),
-        (TIER_FILL["north_fc"],      "white",   "Field Club"),
-        (TIER_FILL["supporters_ga"], "white",   "Supporters GA"),
+        ("#B91C1C", "white",   "Goal end"),
+        ("#1B4F9C", "white",   "Sideline"),
+        ("#7C3AED", "white",   "Field Club"),
+        ("#374151", "white",   "Supporters GA"),
     ]
     conf_legend = [
         ("#DC2626", "white",   "Confidence 1–2"),
@@ -689,7 +768,10 @@ def render_seat_map():
         + "</div>"
     )
     st.markdown(legend_html, unsafe_allow_html=True)
-    st.plotly_chart(fig, use_container_width=True)
+
+    # ── SVG seat map ──────────────────────────────────────────────────────────────
+    svg_html = _build_stadium_svg(section_data, scenario, selected_game_label)
+    st.components.v1.html(svg_html, height=750, scrolling=False)
 
     # Section detail panel (click simulation via selectbox)
     st.subheader("Section Detail")
