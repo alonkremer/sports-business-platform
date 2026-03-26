@@ -131,6 +131,76 @@ def get_games_data(season: int = 2026) -> pd.DataFrame:
     return grouped[available]
 
 
+# ── MLS Team Metadata ────────────────────────────────────────────────────────
+MLS_TEAMS = {
+    "Atlanta United":       {"conf": "East", "color": "#80000A"},
+    "Austin FC":            {"conf": "West", "color": "#00B140"},
+    "Charlotte FC":         {"conf": "East", "color": "#1A85C8"},
+    "Chicago Fire":         {"conf": "East", "color": "#9A1B2F"},
+    "FC Cincinnati":        {"conf": "East", "color": "#003087"},
+    "Colorado Rapids":      {"conf": "West", "color": "#862633"},
+    "Columbus Crew":        {"conf": "East", "color": "#FEDD00"},
+    "D.C. United":          {"conf": "East", "color": "#EF3E42"},
+    "FC Dallas":            {"conf": "West", "color": "#BF0D3E"},
+    "Houston Dynamo":       {"conf": "West", "color": "#F4911E"},
+    "Sporting KC":          {"conf": "West", "color": "#002F6C"},
+    "LA Galaxy":            {"conf": "West", "color": "#00245D"},
+    "LAFC":                 {"conf": "West", "color": "#C39E6D"},
+    "Inter Miami":          {"conf": "East", "color": "#F7B5CD"},
+    "Minnesota United":     {"conf": "West", "color": "#8CD2F4"},
+    "CF Montreal":          {"conf": "East", "color": "#003DA5"},
+    "Nashville SC":         {"conf": "West", "color": "#ECE83A"},
+    "New England Revolution": {"conf": "East", "color": "#C63323"},
+    "NY Red Bulls":         {"conf": "East", "color": "#EF3E42"},
+    "NYCFC":                {"conf": "East", "color": "#6CACE4"},
+    "Orlando City":         {"conf": "East", "color": "#633492"},
+    "Philadelphia Union":   {"conf": "East", "color": "#071B2C"},
+    "Portland Timbers":     {"conf": "West", "color": "#004812"},
+    "Real Salt Lake":       {"conf": "West", "color": "#B30838"},
+    "San Jose Earthquakes": {"conf": "West", "color": "#0D4C92"},
+    "Seattle Sounders":     {"conf": "West", "color": "#5D9741"},
+    "St. Louis City SC":    {"conf": "West", "color": "#EF3340"},
+    "Toronto FC":           {"conf": "East", "color": "#E31937"},
+    "Vancouver Whitecaps":  {"conf": "West", "color": "#9DC2EA"},
+    "Club Tijuana":         {"conf": "Liga MX", "color": "#CC0000"},
+    "Chivas":               {"conf": "Liga MX", "color": "#CC0000"},
+    "Club América":         {"conf": "Liga MX", "color": "#FFDD00"},
+    "Cruz Azul":            {"conf": "Liga MX", "color": "#003DA5"},
+    "Pumas UNAM":           {"conf": "Liga MX", "color": "#003DA5"},
+}
+
+
+def _team_badge_svg(team_name: str, size: int = 20) -> str:
+    """Return a small inline SVG colored circle badge for a team."""
+    info = MLS_TEAMS.get(team_name, {})
+    color = info.get("color", "#6B7280")
+    initials = "".join(w[0] for w in team_name.split()[:2]).upper()
+    return (
+        f'<svg width="{size}" height="{size}" xmlns="http://www.w3.org/2000/svg">'
+        f'<circle cx="{size//2}" cy="{size//2}" r="{size//2-1}" fill="{color}"/>'
+        f'<text x="{size//2}" y="{size//2+4}" text-anchor="middle" '
+        f'font-size="{size//3}" font-family="Arial" font-weight="bold" fill="white">{initials}</text>'
+        f'</svg>'
+    )
+
+
+def _derive_competition(row) -> str:
+    """Derive competition type from game flags."""
+    if row.get("is_baja_cup", False):
+        return "Baja California Cup"
+    game_id = str(row.get("game_id", ""))
+    if "P" in game_id and "H" not in game_id:
+        return "Preseason"
+    if row.get("is_decision_day", False):
+        return "MLS Regular Season (Decision Day)"
+    return "MLS Regular Season"
+
+
+def _derive_conference(opponent: str) -> str:
+    info = MLS_TEAMS.get(opponent, {})
+    return info.get("conf", "Unknown")
+
+
 @st.cache_data(ttl=60)
 def get_gap_data(season: int = 2026) -> dict:
     data = api_get("/gap", {"season": season})
@@ -674,18 +744,100 @@ def render_seat_map():
     col_left, col_right = st.columns([2, 1])
 
     with col_left:
-        # Game selector
+        # ── Game selector with filters ─────────────────────────────────────
         games_df = get_games_data(2026)
         if games_df.empty:
             st.warning("No game data available.")
             return
 
-        game_options = {
-            f"{str(row.get('date', ''))[:10]} vs {row.get('opponent', '')}": row["game_id"]
-            for _, row in games_df.iterrows()
-        }
-        selected_game_label = st.selectbox("Select Game", list(game_options.keys()))
+        # Home games only
+        home_games = games_df[games_df["game_id"].str.contains("H", na=False)].copy()
+        if home_games.empty:
+            home_games = games_df.copy()  # fallback if no H games
+
+        # Derive competition + conference
+        home_games["competition"] = home_games.apply(_derive_competition, axis=1)
+        home_games["conference"]  = home_games["opponent"].apply(_derive_conference)
+        home_games["date_dt"]     = pd.to_datetime(home_games["date"], errors="coerce")
+        home_games["date_str"]    = home_games["date_dt"].dt.strftime("%b %d, %Y").fillna("")
+
+        # ── Filter controls ────────────────────────────────────────────────
+        all_opps   = sorted(home_games["opponent"].dropna().unique().tolist())
+        all_confs  = sorted(home_games["conference"].dropna().unique().tolist())
+        all_comps  = sorted(home_games["competition"].dropna().unique().tolist())
+        min_dt = home_games["date_dt"].min()
+        max_dt = home_games["date_dt"].max()
+
+        with st.expander("🔍 Filter Games", expanded=False):
+            fc1, fc2, fc3 = st.columns(3)
+            with fc1:
+                sel_opps = st.multiselect("Opponent", all_opps, default=[])
+            with fc2:
+                sel_confs = st.multiselect("Conference", all_confs, default=[])
+            with fc3:
+                sel_comps = st.multiselect("Competition", all_comps, default=[])
+
+            use_range = st.checkbox("Filter by date range", value=False)
+            if use_range and pd.notna(min_dt) and pd.notna(max_dt):
+                date_range = st.date_input("Date range", value=(min_dt.date(), max_dt.date()))
+                exact_date = None
+            else:
+                exact_date = st.date_input("Exact date (optional)", value=None)
+                date_range = None
+
+        # Apply filters
+        filtered = home_games.copy()
+        if sel_opps:
+            filtered = filtered[filtered["opponent"].isin(sel_opps)]
+        if sel_confs:
+            filtered = filtered[filtered["conference"].isin(sel_confs)]
+        if sel_comps:
+            filtered = filtered[filtered["competition"].isin(sel_comps)]
+        if use_range and date_range is not None and len(date_range) == 2:
+            lo, hi = pd.Timestamp(date_range[0]), pd.Timestamp(date_range[1])
+            filtered = filtered[(filtered["date_dt"] >= lo) & (filtered["date_dt"] <= hi)]
+        elif not use_range and exact_date is not None:
+            filtered = filtered[filtered["date_dt"].dt.date == exact_date]
+
+        if filtered.empty:
+            st.warning("No games match the selected filters.")
+            filtered = home_games.copy()
+
+        # Build game options dict: display label → game_id
+        def _game_label(row):
+            comp_short = {
+                "MLS Regular Season": "MLS",
+                "MLS Regular Season (Decision Day)": "MLS ★",
+                "Baja California Cup": "Cup",
+                "Preseason": "Pre",
+            }.get(row["competition"], row["competition"][:3])
+            return f"{row['date_str']}  |  {row['opponent']}  [{comp_short}]"
+
+        filtered = filtered.sort_values("date_dt")
+        game_options = {_game_label(row): row["game_id"] for _, row in filtered.iterrows()}
+
+        # Display: team badge + selectbox side by side
+        sel_col1, sel_col2 = st.columns([3, 1])
+        with sel_col1:
+            selected_game_label = st.selectbox("Select Home Game", list(game_options.keys()))
         selected_game_id = game_options.get(selected_game_label)
+
+        # Show badge for selected game
+        selected_row = filtered[filtered["game_id"] == selected_game_id]
+        if not selected_row.empty:
+            opp = selected_row.iloc[0]["opponent"]
+            comp = selected_row.iloc[0]["competition"]
+            conf = selected_row.iloc[0]["conference"]
+            badge_svg = _team_badge_svg(opp, size=36)
+            with sel_col2:
+                st.markdown(
+                    f'<div style="display:flex;align-items:center;gap:8px;padding-top:24px">'
+                    f'{badge_svg}'
+                    f'<div style="font-size:11px;color:#9CA3AF;line-height:1.3">'
+                    f'<b style="color:#E5E7EB">{opp}</b><br>{conf} | {comp}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
 
         scenario = st.radio(
             "Scenario",
