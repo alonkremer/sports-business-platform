@@ -141,8 +141,7 @@ def get_alerts() -> list:
 
 def render_sidebar():
     with st.sidebar:
-        st.image("https://upload.wikimedia.org/wikipedia/en/9/9e/San_Diego_FC.png",
-                 width=80) if False else st.markdown("⚽ **SD FC**")
+        st.markdown("⚽ **SD FC**")
         st.title("SD FC Pricing Intelligence")
         st.caption("AI-powered ticket revenue optimization")
         st.divider()
@@ -850,5 +849,4 @@ def main():
         render_performance_report()
 
 
-if __name__ == "__main__":
-    main()
+main()
