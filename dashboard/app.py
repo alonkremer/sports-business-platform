@@ -343,152 +343,210 @@ def render_seat_map():
                 "sell_through": scen.get("expected_sell_through", 80),
             }
 
-    # ── Snapdragon Stadium — top-down seat map (rectangular sections) ────────────
-    # Based on actual Ticketmaster layout for Snapdragon Stadium.
+    # ── Snapdragon Stadium — top-down seat map ───────────────────────────────────
     # Pitch runs LANDSCAPE (goals at east=right and west=left).
-    # South (bottom) = sideline 101-113.  North (top) = field club + 133-135.
-    # West (left) = goal end sections 114-123.  East (right) = supporters + 135-141.
+    # South (bottom) = sideline 101-113.  North (top) = field club C124-C132 + 133-135.
+    # West (left) = goal end 114-123 (PIERS premium).  East (right) = supporters GA + 141.
+    # Goal ends are the SHORT sides — narrower x-extent than sideline depth.
 
     def _R(x0, x1, y0, y1):
         """Closed rectangle as Scatter polygon coords."""
         return [x0, x1, x1, x0, x0], [y0, y0, y1, y1, y0]
 
+    def _T(x0_out, x1_out, y0, y1, taper=0.04, axis="y"):
+        """Trapezoid that tapers slightly on the inner edge (toward pitch).
+        axis='y': south/north sections — inner edge is at y1 (north) or y0 (south).
+        axis='x': west/east sections — tapers not currently used.
+        Returns xs, ys for a closed polygon."""
+        # For south sections: y0=outer, y1=inner (closer to pitch) → taper at y1
+        # For north sections: y0=inner (closer to pitch), y1=outer → taper at y0
+        if axis == "south":
+            # outer edge full width, inner edge narrowed
+            xs = [x0_out, x1_out, x1_out - taper, x0_out + taper, x0_out]
+            ys = [y0,     y0,     y1,              y1,             y0]
+        elif axis == "north":
+            # inner edge (y0) narrowed, outer edge (y1) full width
+            xs = [x0_out + taper, x1_out - taper, x1_out, x0_out, x0_out + taper]
+            ys = [y0,             y0,              y1,     y1,     y0]
+        else:
+            xs, ys = _R(x0_out, x1_out, y0, y1)
+        return xs, ys
+
     # SD FC tier colors (default when no API pricing data)
     TIER_FILL = {
-        "south_side":      "#1A4F9C",  # blue  — south sideline (101-113)
-        "west_end":        "#C8102E",  # red   — west goal end (114-123)
-        "north_fc":        "#6B21A8",  # purple— north field club (C124-C132)
-        "north_outer":     "#1A4F9C",  # blue  — north outer (133-135)
-        "east_end":        "#C8102E",  # red   — east goal end
-        "supporters_ga":   "#374151",  # dark  — supporters GA
-        "upper_south":     "#374985",  # steel — upper bowl south (202-212)
-        "upper_north":     "#6B7280",  # gray  — concourse north (323-333)
-        "upper_west":      "#4C1D95",  # purple— west club (C223-C231)
+        "south_side":      "#002F6C",  # SD FC navy — south sideline (101-113)
+        "west_end":        "#C8102E",  # SD FC red  — west goal end (114-123)
+        "north_fc":        "#6B21A8",  # purple     — north field club (C124-C132)
+        "north_outer":     "#002F6C",  # SD FC navy — north outer (133-135)
+        "east_end":        "#C8102E",  # SD FC red  — east goal end
+        "supporters_ga":   "#1F2937",  # very dark  — supporters GA
+        "upper_south":     "#1E3A6E",  # deep steel — upper bowl south (202-212)
+        "upper_north":     "#4B5563",  # mid gray   — concourse north (323-333)
+        "upper_west":      "#4C1D95",  # deep purple— west club (C223-C231)
     }
 
-    # ── Y-axis bands (north=positive, south=negative) ──────────────────────────
-    PY0, PY1    = -0.60,  0.60   # pitch south / north edge
-    S_Y0, S_Y1  = -1.00,  PY0   # south lower bowl
-    N_FC_Y0     =  PY1          # north field club starts here
-    N_FC_Y1     =  0.76         # north field club outer edge
-    N_OUT_Y1    =  1.00         # north outer sections (133-135) outer edge
-    UB_S_Y0     = -1.38         # upper bowl south outer
-    CONC_Y1     =  1.38         # concourse north outer
-    UB_W_Y0, UB_W_Y1 = -1.0, 1.0   # west upper club y-span
+    # ── Pitch Y-axis bands (north=positive, south=negative) ────────────────────
+    PY0, PY1    = -0.58,  0.58   # pitch south / north edge
+    S_Y0, S_Y1  = -1.03,  PY0   # south lower bowl (deeper = 0.45 units)
+    N_FC_Y0     =  PY1          # north field club inner edge
+    N_FC_Y1     =  0.76         # north field club outer edge (~0.18 deep)
+    N_OUT_Y1    =  1.00         # north outer sections outer edge
+    UB_S_Y0     = -1.40         # upper bowl south outer
+    CONC_Y1     =  1.40         # concourse north outer
 
-    # ── X-axis bands (east=positive, west=negative) ────────────────────────────
+    # ── Pitch X-axis bands (east=positive, west=negative) ──────────────────────
     PX0, PX1    = -1.02,  1.02  # pitch west / east edge
-    W_X0, W_X1  = -1.44, -1.04 # west goal end
-    E_X0, E_X1  =  1.04,  1.44 # east goal end
-    UB_W_X0     = -1.80        # west upper outer
+    # Goal ends narrower: 0.34 units wide (was 0.40)
+    W_X0, W_X1  = -1.38, -1.04 # west goal end (narrower)
+    E_X0, E_X1  =  1.04,  1.38 # east goal end (narrower)
+    UB_W_X0     = -1.76        # west upper club outer
 
-    # ── All section definitions: (label, group_key, x0, x1, y0, y1, tier) ─────
-    SECS = []
+    # ── Section definitions: (label, group_key, shape_type, geom, tier) ─────────
+    # shape_type: "rect", "trap_south", "trap_north"
+    # geom for rect/trap: (x0, x1, y0, y1)
+    SECS = []  # (lbl, grp, shape, x0, x1, y0, y1, tier)
 
-    # South sideline — 101 (east/right) → 113 (west/left)
-    # 11 sections spanning x[1.28, -1.18]
-    _s_xs  = [1.28, 1.08, 0.88, 0.68, 0.44, 0.18, -0.08, -0.34, -0.58, -0.80, -1.00, -1.18]
+    # South sideline — 101 (east/right) → 113 (west/left), 13 sections
+    # Spans x[-1.20, 1.28], each section trapezoidal (tapers toward pitch)
+    _s_xs  = [1.28, 1.08, 0.88, 0.68, 0.44, 0.18, -0.08, -0.34, -0.58, -0.80, -1.00, -1.20]
     _s_lbl = ["101","102","103","104","105","108","109","110","111","112","113"]
     _s_grp = ["LB_101_105"]*5 + ["LB_106_110"]*3 + ["LB_111_115"]*3
     for i in range(11):
-        SECS.append((_s_lbl[i], _s_grp[i], _s_xs[i+1], _s_xs[i], S_Y0, S_Y1, "south_side"))
+        SECS.append((_s_lbl[i], _s_grp[i], "trap_south",
+                     _s_xs[i+1], _s_xs[i], S_Y0, S_Y1, "south_side"))
 
-    # West goal end — 114 (south) → 123 (north), 10 sections
-    _w_ys  = [-0.90 + i*0.18 for i in range(11)]
+    # South premium inner sections C106-C108 (smaller inset strip near pitch)
+    _cfc_s_xs = [-0.08, 0.18, 0.44, 0.68]
+    for i, lbl in enumerate(["C106","C107","C108"]):
+        SECS.append((lbl, "LB_106_110", "trap_south",
+                     _cfc_s_xs[i], _cfc_s_xs[i+1],
+                     S_Y1, S_Y1 + 0.10, "north_fc"))  # thin inner strip
+
+    # West goal end — 114 (south) → 123 (north), 10 sections (narrower end)
+    _w_ys  = [-0.58 + i * (1.16/10) for i in range(11)]
     _w_lbl = ["114","115","116","117","118","119","120","121","122","123"]
     _w_grp = ["LB_111_115"]*2 + ["LB_116_120"]*5 + ["LB_121_123"]*3
     for i in range(10):
-        SECS.append((_w_lbl[i], _w_grp[i], W_X0, W_X1, _w_ys[i], _w_ys[i+1], "west_end"))
+        SECS.append((_w_lbl[i], _w_grp[i], "rect",
+                     W_X0, W_X1, _w_ys[i], _w_ys[i+1], "west_end"))
 
-    # North field club — C124 (west) → C132 (east), inner row
-    _fc_x  = [-0.66 + i*(1.52/9) for i in range(10)]
+    # North field club — C124 (west) → C132 (east), premium pitch-side strip
+    _fc_x  = [-0.66 + i * (1.52/9) for i in range(10)]
     for i in range(9):
-        SECS.append((f"C{124+i}", "FC_C124_C132", _fc_x[i], _fc_x[i+1],
-                     N_FC_Y0, N_FC_Y1, "north_fc"))
+        SECS.append((f"C{124+i}", "FC_C124_C132", "trap_north",
+                     _fc_x[i], _fc_x[i+1], N_FC_Y0, N_FC_Y1, "north_fc"))
 
-    # North outer — 133, T134, T135 (east end of north sideline)
-    for lbl, grp, x0, x1 in [("133","LB_133_135",0.86,1.04),
-                               ("134","LB_133_135",1.04,1.18),
-                               ("135","LB_133_135",1.18,1.28)]:
-        SECS.append((lbl, grp, x0, x1, N_FC_Y0, N_OUT_Y1, "north_outer"))
+    # North outer — 133, 134, 135 (east end of north stand)
+    for lbl, grp, x0, x1 in [("133","LB_133_135", 0.68, 0.88),
+                               ("134","LB_133_135", 0.88, 1.08),
+                               ("135","LB_133_135", 1.08, 1.28)]:
+        SECS.append((lbl, grp, "trap_north", x0, x1, N_FC_Y0, N_OUT_Y1, "north_outer"))
 
-    # East goal end — T135 (north corner), Supporters GA, 141 (south corner)
-    SECS.append(("135",             "LB_133_135", E_X0, E_X1,  0.68, 0.90, "east_end"))
-    SECS.append(("Supporters\nGA",  "GA_136_140", E_X0, E_X1, -0.55, 0.68, "supporters_ga"))
-    SECS.append(("141",             "LB_141",     E_X0, E_X1, -0.90,-0.55, "east_end"))
+    # East goal end — 135 (north corner), Supporters GA, 141 (south corner)
+    SECS.append(("135",            "LB_133_135", "rect",
+                 E_X0, E_X1,  0.58,  0.90, "east_end"))
+    SECS.append(("Supporters\nGA", "GA_136_140", "rect",
+                 E_X0, E_X1, -0.50,  0.58, "supporters_ga"))
+    SECS.append(("141",            "LB_141",     "rect",
+                 E_X0, E_X1, -0.90, -0.50, "east_end"))
 
     # Upper bowl south — 202-212, 11 sections
-    _ub_dx = 2.46 / 11
+    _ub_dx   = 2.40 / 11
     _ub_lbls = ["202","203","204","205","206","207","208","209","210","211","212"]
     _ub_grps = ["UB_202_207"]*6 + ["UB_208_212"]*5
     for i in range(11):
-        x0 = -1.23 + i * _ub_dx
-        SECS.append((_ub_lbls[i], _ub_grps[i], x0, x0+_ub_dx,
-                     UB_S_Y0, S_Y0 - 0.04, "upper_south"))
+        x0 = -1.20 + i * _ub_dx
+        SECS.append((_ub_lbls[i], _ub_grps[i], "rect",
+                     x0, x0 + _ub_dx, UB_S_Y0, S_Y0 - 0.05, "upper_south"))
 
     # Concourse north — 323-333, 11 sections
     _cn_lbls = ["323","324","325","326","327","328","329","330","331","332","333"]
     for i, lbl in enumerate(_cn_lbls):
-        x0 = -1.23 + i * _ub_dx
-        SECS.append((lbl, "UC_323_334", x0, x0+_ub_dx,
-                     N_OUT_Y1 + 0.04, CONC_Y1, "upper_north"))
+        x0 = -1.20 + i * _ub_dx
+        SECS.append((lbl, "UC_323_334", "rect",
+                     x0, x0 + _ub_dx, N_OUT_Y1 + 0.05, CONC_Y1, "upper_north"))
 
     # West upper club — C223-C231 (narrow strip on far left)
     _wc_dy = 1.80 / 9
     for i in range(9):
         y0 = -0.90 + i * _wc_dy
-        SECS.append((f"C{223+i}", "WC_C223_C231",
-                     UB_W_X0, W_X0 - 0.04, y0, y0 + _wc_dy, "upper_west"))
+        SECS.append((f"C{223+i}", "WC_C223_C231", "rect",
+                     UB_W_X0, W_X0 - 0.05, y0, y0 + _wc_dy, "upper_west"))
 
     # ── Build figure ────────────────────────────────────────────────────────────
     fig = go.Figure()
 
-    # Background: stadium bowl area (light gray like Ticketmaster)
-    fig.add_shape(type="rect", x0=-1.90, x1=1.90, y0=-1.48, y1=1.48,
-                  fillcolor="#d8d8d8", line=dict(width=0), layer="below")
+    # Outer background (very light gray — outside stadium)
+    fig.add_shape(type="rect", x0=-2.05, x1=2.05, y0=-1.60, y1=1.60,
+                  fillcolor="#f0f0f0", line=dict(width=0), layer="below")
 
-    # Pitch
+    # Stadium bowl background (slightly darker rounded-rect approximation)
+    fig.add_shape(type="rect", x0=-1.85, x1=1.85, y0=-1.50, y1=1.50,
+                  fillcolor="#d4d4d4", line=dict(color="#bdbdbd", width=1.5),
+                  layer="below")
+
+    # Pitch surface
     fig.add_shape(type="rect", x0=PX0, x1=PX1, y0=PY0, y1=PY1,
                   fillcolor="#3a8a3a", line=dict(color="#2a6a2a", width=2),
                   layer="below")
-    fig.add_shape(type="line",   x0=0,    y0=PY0, x1=0,    y1=PY1,
+    # Halfway line
+    fig.add_shape(type="line", x0=0, y0=PY0, x1=0, y1=PY1,
                   line=dict(color="#5ab05a", width=1.5))
-    fig.add_shape(type="circle", x0=-0.20, y0=-0.22, x1=0.20, y1=0.22,
+    # Center circle
+    fig.add_shape(type="circle", x0=-0.18, y0=-0.20, x1=0.18, y1=0.20,
                   line=dict(color="#5ab05a", width=1.5))
-    # Penalty boxes (east and west)
-    fig.add_shape(type="rect", x0=PX0,        x1=PX0+0.30, y0=-0.28, y1=0.28,
-                  line=dict(color="#5ab05a", width=1.2))
-    fig.add_shape(type="rect", x0=PX1-0.30,   x1=PX1,      y0=-0.28, y1=0.28,
-                  line=dict(color="#5ab05a", width=1.2))
+    # Center spot
+    fig.add_shape(type="circle", x0=-0.015, y0=-0.017, x1=0.015, y1=0.017,
+                  fillcolor="#5ab05a", line=dict(width=0))
+    # Corner arcs (small quarter-circles approximated as small filled circles)
+    for cx, cy in [(PX0, PY0), (PX0, PY1), (PX1, PY0), (PX1, PY1)]:
+        r = 0.04
+        fig.add_shape(type="circle", x0=cx-r, y0=cy-r, x1=cx+r, y1=cy+r,
+                      line=dict(color="#5ab05a", width=1.2))
+    # Penalty boxes
+    fig.add_shape(type="rect", x0=PX0,      x1=PX0+0.28, y0=-0.26, y1=0.26,
+                  line=dict(color="#5ab05a", width=1.2), fillcolor="rgba(0,0,0,0)")
+    fig.add_shape(type="rect", x0=PX1-0.28, x1=PX1,      y0=-0.26, y1=0.26,
+                  line=dict(color="#5ab05a", width=1.2), fillcolor="rgba(0,0,0,0)")
+    # Six-yard boxes
+    fig.add_shape(type="rect", x0=PX0,      x1=PX0+0.10, y0=-0.10, y1=0.10,
+                  line=dict(color="#5ab05a", width=0.8), fillcolor="rgba(0,0,0,0)")
+    fig.add_shape(type="rect", x0=PX1-0.10, x1=PX1,      y0=-0.10, y1=0.10,
+                  line=dict(color="#5ab05a", width=0.8), fillcolor="rgba(0,0,0,0)")
     # Goal nets
-    fig.add_shape(type="rect", x0=PX0-0.06, x1=PX0, y0=-0.10, y1=0.10,
-                  fillcolor="#5ab05a", line=dict(width=0))
-    fig.add_shape(type="rect", x0=PX1,      x1=PX1+0.06, y0=-0.10, y1=0.10,
-                  fillcolor="#5ab05a", line=dict(width=0))
-    fig.add_annotation(x=0, y=0, text="⚽", font=dict(size=16), showarrow=False)
+    fig.add_shape(type="rect", x0=PX0-0.06, x1=PX0, y0=-0.085, y1=0.085,
+                  fillcolor="#4a9a4a", line=dict(color="#3a8a3a", width=0.8))
+    fig.add_shape(type="rect", x0=PX1,      x1=PX1+0.06, y0=-0.085, y1=0.085,
+                  fillcolor="#4a9a4a", line=dict(color="#3a8a3a", width=0.8))
 
     # ── Draw every section ──────────────────────────────────────────────────────
-    for (lbl, grp, sx0, sx1, sy0, sy1, tier) in SECS:
+    for (lbl, grp, shape, sx0, sx1, sy0, sy1, tier) in SECS:
         d = section_data.get(grp, {})
         has_data = bool(d)
 
         if has_data:
             pchg = d.get("price_change_pct", 0)
-            if pchg > 15:   fill = COLORS["hot"]
-            elif pchg > 5:  fill = COLORS["warm"]
-            elif pchg < -5: fill = COLORS["cold"]
-            else:           fill = COLORS["healthy"]
+            if pchg > 15:   fill = "#EF4444"   # bright red — raise 15%+
+            elif pchg > 5:  fill = "#F59E0B"   # amber — raise 5-15%
+            elif pchg < -5: fill = "#3B82F6"   # blue — consider reducing
+            else:           fill = "#10B981"   # emerald — at optimal
         else:
             fill = TIER_FILL.get(tier, "#9CA3AF")
 
-        px_poly, py_poly = _R(sx0, sx1, sy0, sy1)
+        if shape == "trap_south":
+            px_poly, py_poly = _T(sx0, sx1, sy0, sy1, taper=0.03, axis="south")
+        elif shape == "trap_north":
+            px_poly, py_poly = _T(sx0, sx1, sy0, sy1, taper=0.025, axis="north")
+        else:
+            px_poly, py_poly = _R(sx0, sx1, sy0, sy1)
+
         face   = d.get("face_price", 0)
         scen_p = d.get("scenario_price", face)
         pchg_v = d.get("price_change_pct", 0)
         health = d.get("market_health", "")
 
         hover = (
-            f"<b>Section {lbl.replace(chr(10),' ')}</b><br>"
+            f"<b>Section {lbl.replace(chr(10), ' ')}</b><br>"
             + (f"Current: ${face:.0f} | {scenario.title()}: ${scen_p:.0f} ({pchg_v:+.1f}%)<br>"
                f"Market: {HEALTH_LABELS.get(health, health)} | "
                f"STH: {'✓' if d.get('sth_healthy', True) else '⚠ Risk'}"
@@ -504,48 +562,60 @@ def render_seat_map():
             showlegend=False,
         ))
 
-        # Label — section number or price
-        lx, ly = (sx0+sx1)/2, (sy0+sy1)/2
-        sw, sh = abs(sx1-sx0), abs(sy1-sy0)
-        if sw > 0.09 and sh > 0.07:
+        # Label — section number or scenario price
+        lx = (sx0 + sx1) / 2
+        ly = (sy0 + sy1) / 2
+        sw = abs(sx1 - sx0)
+        sh = abs(sy1 - sy0)
+        if sw > 0.09 and sh > 0.06:
             txt = f"${scen_p:.0f}" if has_data else lbl.split("\n")[0][:5]
-            fsize = 9 if sw > 0.20 and sh > 0.20 else 7
-            fig.add_annotation(x=lx, y=ly, text=txt, showarrow=False,
-                               font=dict(size=fsize, color="white",
-                                         family="Arial Black"))
+            fsize = 9 if sw > 0.18 and sh > 0.18 else 7
+            fig.add_annotation(
+                x=lx, y=ly, text=txt, showarrow=False,
+                font=dict(size=fsize, color="white", family="Arial Black"),
+            )
 
-    # Orientation labels
-    fig.add_annotation(x=0,    y=-1.55, text="SOUTH SIDELINE",
+    # ── Premium area named labels ────────────────────────────────────────────────
+    fig.add_annotation(x=-1.21, y=0.08, text="<i>Sycuan<br>Founders<br>Club</i>",
+                       font=dict(size=7, color="#fff"), showarrow=False,
+                       align="center")
+    fig.add_annotation(x=0, y=1.12, text="<i>Toyota Terrace</i>",
+                       font=dict(size=7.5, color="#444"), showarrow=False)
+    fig.add_annotation(x=1.21, y=-0.20, text="<i>Sandbox</i>",
+                       font=dict(size=7, color="#ddd"), showarrow=False)
+
+    # ── Orientation labels ───────────────────────────────────────────────────────
+    fig.add_annotation(x=0,     y=-1.58, text="SOUTH SIDELINE",
                        font=dict(size=9, color="#555"), showarrow=False)
-    fig.add_annotation(x=0,    y= 1.55, text="NORTH (Field Club side)",
+    fig.add_annotation(x=0,     y= 1.58, text="NORTH — Field Club",
                        font=dict(size=9, color="#555"), showarrow=False)
-    fig.add_annotation(x=-1.65, y=0,   text="WEST\nGoal\n(Premium)",
-                       font=dict(size=8, color="#555"), showarrow=False)
-    fig.add_annotation(x= 1.65, y=0,   text="EAST\nGoal\n(Supporters)",
-                       font=dict(size=8, color="#555"), showarrow=False)
+    fig.add_annotation(x=-1.62, y=0,    text="WEST\nGoal End\n(Premium)",
+                       font=dict(size=7.5, color="#555"), showarrow=False)
+    fig.add_annotation(x= 1.62, y=0,    text="EAST\nGoal End\n(Supporters)",
+                       font=dict(size=7.5, color="#555"), showarrow=False)
 
     fig.update_layout(
         title=dict(
             text=f"Snapdragon Stadium — {selected_game_label} | {scenario.title()} Scenario",
             font=dict(size=14), x=0.5,
         ),
-        xaxis=dict(range=[-2.0, 2.0], showticklabels=False, showgrid=False,
+        xaxis=dict(range=[-2.1, 2.1], showticklabels=False, showgrid=False,
                    zeroline=False, fixedrange=True),
-        yaxis=dict(range=[-1.65, 1.65], showticklabels=False, showgrid=False,
+        yaxis=dict(range=[-1.72, 1.72], showticklabels=False, showgrid=False,
                    zeroline=False, fixedrange=True, scaleanchor="x"),
-        height=620,
+        height=640,
         margin=dict(l=5, r=5, t=50, b=5),
-        plot_bgcolor="#e8e8e8",
+        plot_bgcolor="#f0f0f0",
         paper_bgcolor="rgba(0,0,0,0)",
         hovermode="closest",
     )
 
     # Legend
     legend_items = [
-        (COLORS["hot"],               "HOT — raise 15%+"),
-        (COLORS["warm"],              "WARM — raise 5-15%"),
-        (COLORS["healthy"],           "HEALTHY — near optimal"),
-        (COLORS["cold"],              "COLD — consider reduction"),
+        ("#EF4444",                   "HOT — raise 15%+"),
+        ("#F59E0B",                   "WARM — raise 5-15%"),
+        ("#10B981",                   "HEALTHY — near optimal"),
+        ("#3B82F6",                   "COLD — consider reduction"),
         (TIER_FILL["west_end"],       "Goal end"),
         (TIER_FILL["south_side"],     "Sideline"),
         (TIER_FILL["north_fc"],       "Field Club"),
