@@ -55,23 +55,26 @@ class TestEmsrOptimal:
     def test_optimal_price_positive(self):
         grid = _build_price_grid(75.0)
         demand = _demand_curve(grid, 75.0, 0.80, -0.70, 1600)
-        result = _emsr_b_optimal(grid, demand, 1600, 0.60)
+        result = _emsr_b_optimal(grid, demand, 1600)
         assert result["optimal_price"] > 0
 
     def test_balanced_generates_positive_revenue(self):
         grid = _build_price_grid(75.0)
         demand = _demand_curve(grid, 75.0, 0.80, -0.70, 1600)
-        result = _emsr_b_optimal(grid, demand, 1600, 0.60)
+        result = _emsr_b_optimal(grid, demand, 1600)
         assert result["expected_revenue"] > 0
 
     def test_aggressive_higher_price_than_conservative(self):
-        """Aggressive scenario should generally yield higher price than conservative."""
-        grid = _build_price_grid(75.0)
-        demand = _demand_curve(grid, 75.0, 0.80, -0.70, 1600)
-        conservative = _emsr_b_optimal(grid, demand, 1600, 0.30)
-        aggressive = _emsr_b_optimal(grid, demand, 1600, 0.90)
-        # Not always guaranteed but should hold for typical elasticity
-        assert aggressive["optimal_price"] >= conservative["optimal_price"] - 10
+        """Aggressive scenario should yield a higher price than conservative."""
+        from src.price_optimizer.emsr_optimizer import optimize_section_game
+        result = optimize_section_game(
+            game_id="test", section="lower_bowl_midfield", tier="lower_bowl_midfield",
+            face_price=75.0, base_demand=0.80, elasticity=-0.70,
+            capacity=1600, sold_price_avg=100.0, sth_resale_margin=25.0,
+        )
+        conservative_price = result["scenarios"]["conservative"]["price"]
+        aggressive_price   = result["scenarios"]["aggressive"]["price"]
+        assert aggressive_price >= conservative_price
 
 
 class TestStrategicGuardrails:

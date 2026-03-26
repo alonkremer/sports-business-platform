@@ -25,6 +25,7 @@ from typing import Annotated, Any, TypedDict
 from loguru import logger
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))  # ensure src.* modules are importable
 
 # Attempt LangGraph import; graceful degradation to sequential runner
 try:

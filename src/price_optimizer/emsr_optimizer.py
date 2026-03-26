@@ -128,43 +128,36 @@ def _emsr_b_optimal(
     price_grid: np.ndarray,
     demand_curve: np.ndarray,
     capacity: int,
-    alpha: float,
 ) -> dict:
     """
-    EMSR-b expected revenue calculation.
-
-    The "b" variant of EMSR considers the expected marginal revenue of
-    protecting a seat for higher-value buyers vs. selling now.
+    Pure EMSR-b: find the revenue-maximising price across the price grid.
+    Scenario blending (conservative / balanced / aggressive) happens in
+    optimize_section_game — this function is scenario-agnostic.
 
     For each price point:
       Expected Revenue = price × min(demand × capacity, capacity)
-
-    alpha controls the capacity protection level:
-      low alpha → fill seats aggressively (lower price)
-      high alpha → hold for higher prices (more unsold risk)
     """
-    expected_revenues = []
+    expected_revenues  = []
     expected_attendances = []
     expected_sell_throughs = []
 
     for price, demand_frac in zip(price_grid, demand_curve):
-        seats_sold = min(int(demand_frac * capacity * alpha + demand_frac * capacity * (1 - alpha)), capacity)
-        revenue = price * seats_sold
+        seats_sold = min(int(demand_frac * capacity), capacity)
+        revenue    = price * seats_sold
         expected_revenues.append(revenue)
         expected_attendances.append(seats_sold)
         expected_sell_throughs.append(seats_sold / capacity * 100)
 
-    # Find revenue-maximizing price
-    rev_arr = np.array(expected_revenues)
+    rev_arr  = np.array(expected_revenues)
     best_idx = int(np.argmax(rev_arr))
 
     return {
-        "optimal_price":        float(price_grid[best_idx]),
-        "expected_revenue":     float(rev_arr[best_idx]),
-        "expected_attendance":  float(expected_attendances[best_idx]),
+        "optimal_price":         float(price_grid[best_idx]),
+        "expected_revenue":      float(rev_arr[best_idx]),
+        "expected_attendance":   float(expected_attendances[best_idx]),
         "expected_sell_through": float(expected_sell_throughs[best_idx]),
-        "price_curve":          price_grid.tolist(),
-        "revenue_curve":        expected_revenues,
+        "price_curve":           price_grid.tolist(),
+        "revenue_curve":         expected_revenues,
     }
 
 
@@ -241,10 +234,20 @@ def optimize_section_game(
     price_grid = _build_price_grid(face_price)
     demand_at_price = _demand_curve(price_grid, face_price, base_demand, elasticity, capacity)
 
+    # Compute the pure revenue-maximising price once — shared across scenarios.
+    # Each scenario then blends between face_price (safe, fill seats) and the
+    # EMSR optimal (maximum extraction) using its alpha weight:
+    #   conservative (α=0.30) → 30 % of the way from face to optimal
+    #   balanced     (α=0.60) → 60 % of the way
+    #   aggressive   (α=0.90) → 90 % of the way
+    emsr_result   = _emsr_b_optimal(price_grid, demand_at_price, capacity)
+    emsr_optimal  = emsr_result["optimal_price"]
+
     scenarios_out = {}
     for scenario_name, alpha in SCENARIOS.items():
-        result = _emsr_b_optimal(price_grid, demand_at_price, capacity, alpha)
-        raw_price = result["optimal_price"]
+        # Blend, then snap to nearest grid price
+        blended   = alpha * emsr_optimal + (1 - alpha) * face_price
+        raw_price = float(price_grid[int(np.argmin(np.abs(price_grid - blended)))])
 
         # Apply guardrails
         adj_price, guardrails_applied = _apply_guardrails(
@@ -256,8 +259,7 @@ def optimize_section_game(
             np.array([adj_price]), face_price, base_demand, elasticity, capacity
         )[0])
 
-        alpha_adj = SCENARIOS[scenario_name]
-        seats_sold_adj = min(int(demand_at_adj * capacity * alpha_adj + demand_at_adj * capacity * (1 - alpha_adj)), capacity)
+        seats_sold_adj = min(int(demand_at_adj * capacity), capacity)
         revenue_adj = adj_price * seats_sold_adj
         sell_through_adj = seats_sold_adj / capacity * 100
 

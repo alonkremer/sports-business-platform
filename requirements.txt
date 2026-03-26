@@ -1,64 +1,9 @@
-# Core data stack
-duckdb>=0.10.0
-dbt-duckdb>=1.7.0
+# Dashboard requirements — used by Streamlit Community Cloud
+# For full local dev stack (API + pipeline + ML), use requirements-dev.txt
+
+streamlit>=1.32.0
 pandas>=2.2.0
 numpy>=1.26.0
 pyarrow>=15.0.0
-
-# ML models
-xgboost>=2.0.0
-scikit-learn>=1.4.0
-econml>=0.15.0
-shap>=0.45.0
-
-# Revenue management / optimization
-scipy>=1.12.0
-
-# Web scraping
-playwright>=1.41.0
-beautifulsoup4>=4.12.0
-requests>=2.31.0
-lxml>=5.1.0
-httpx>=0.26.0
-
-# API
-fastapi>=0.110.0
-uvicorn>=0.27.0
-pydantic>=2.6.0
-
-# Dashboard
-streamlit>=1.32.0
 plotly>=5.19.0
-altair>=5.2.0
-
-# ML experiment tracking
-mlflow>=2.11.0
-
-# Agent orchestration
-langgraph>=0.0.40
-langchain-anthropic>=0.1.0
-anthropic>=0.25.0
-
-# NLP (social sentiment)
-vaderSentiment>=3.3.2
-
-# External data APIs
-openmeteo-requests>=1.1.0
-requests-cache>=1.2.0
-retry-requests>=2.0.0
-
-# Scheduling / notifications
-apscheduler>=3.10.0
-python-dotenv>=1.0.0
-
-# Testing
-pytest>=8.0.0
-pytest-asyncio>=0.23.0
-
-# Utilities
-tqdm>=4.66.0
-loguru>=0.7.0
-tenacity>=8.2.0
-python-dateutil>=2.9.0
-pytz>=2024.1
-praw>=7.7.0  # Reddit API
+requests>=2.31.0
