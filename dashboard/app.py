@@ -515,8 +515,11 @@ def _build_stadium_svg(
                     f'font-size="{fsz}" font-family="Arial" font-weight="600" '
                     f'pointer-events="none">{ptxt}</text>')
         # Seat dots — rendered at SVG scale, shown via CSS when zoomed in
-        _SP = 0.055   # data-unit spacing between seat centres
-        _DR = 2.5     # dot radius in SVG px
+        # 1 data-unit = 50m (pitch 2.1 units = 105m).
+        # Real seat pitch ≈ 0.50–0.75m → 0.010–0.015 units.
+        # _SP=0.012 gives ~15-21 seats/row for 100-level and FC sections.
+        _SP = 0.012   # data-unit spacing between seat centres (~0.60m real)
+        _DR = 2.0     # dot radius in SVG px
         _dots: list[str] = []
         if rows == "h":
             _rs = abs(y1 - y0) / (nr + 1)
@@ -704,19 +707,56 @@ def _build_stadium_svg(
         font-family="Arial" pointer-events="none">&#8635; Reset View</text>
 </g>
 
-<!-- Minimap (fixed, bottom-right) -->
-<g id="minimap" transform="translate({W-172},{H-150})">
-  <rect x="0" y="0" width="160" height="138" rx="5"
-        fill="rgba(8,10,25,0.88)" stroke="#374151" stroke-width="1"/>
-  <rect x="{bx0*160/W:.1f}" y="{by0*138/H:.1f}"
-        width="{(bx1-bx0)*160/W:.1f}" height="{(by1-by0)*138/H:.1f}"
-        rx="3" fill="#181b2e" stroke="#2b2f4a" stroke-width="0.8"/>
-  <rect x="{psx*160/W:.1f}" y="{psy*138/H:.1f}"
-        width="{pw*160/W:.1f}" height="{ph*138/H:.1f}" fill="#2e7d32"/>
-  <text x="80" y="133" text-anchor="middle" fill="#4B5563"
-        font-size="8" font-family="Arial">OVERVIEW</text>
-  <rect id="mmViewport" x="0" y="0" width="160" height="138"
-        fill="rgba(96,165,250,0.08)" stroke="#60A5FA" stroke-width="1.5" rx="2"/>
+<!-- Minimap (fixed, bottom-right) — pre-compute all coords in Python -->
+<g id="minimap" transform="translate({W-174},{H-152})">
+  <!-- Outer frame -->
+  <rect x="0" y="0" width="162" height="142" rx="6"
+        fill="#0d1220" stroke="#4B5563" stroke-width="1.5"/>
+  <!-- Bowl fill -->
+  <rect x="{bx0*162/W:.1f}" y="{by0*142/H:.1f}"
+        width="{(bx1-bx0)*162/W:.1f}" height="{(by1-by0)*142/H:.1f}"
+        rx="3" fill="#1a1f38" stroke="#3B4060" stroke-width="1"/>
+  <!-- Stand blocks: north UC -->
+  <rect x="{(CX-S_XSPAN*SC)*162/W:.1f}" y="{(CY-N_UC*SC)*142/H:.1f}"
+        width="{2*S_XSPAN*SC*162/W:.1f}" height="{(N_UC-N_FC)*SC*142/H:.1f}"
+        fill="#2d3a5e" stroke="none"/>
+  <!-- Stand blocks: north FC -->
+  <rect x="{(CX-S_XSPAN*SC)*162/W:.1f}" y="{(CY-N_FC*SC)*142/H:.1f}"
+        width="{2*S_XSPAN*SC*162/W:.1f}" height="{(N_FC-N_IN)*SC*142/H:.1f}"
+        fill="#364470" stroke="none"/>
+  <!-- Stand blocks: south LB -->
+  <rect x="{(CX-S_XSPAN*SC)*162/W:.1f}" y="{(CY-S_IN*SC)*142/H:.1f}"
+        width="{2*S_XSPAN*SC*162/W:.1f}" height="{(S_IN-S_LL)*SC*142/H:.1f}"
+        fill="#2d3a5e" stroke="none"/>
+  <!-- Stand blocks: south UB -->
+  <rect x="{(CX-S_XSPAN*SC)*162/W:.1f}" y="{(CY-S_LL*SC)*142/H:.1f}"
+        width="{2*S_XSPAN*SC*162/W:.1f}" height="{(S_LL-S_UB)*SC*142/H:.1f}"
+        fill="#222a48" stroke="none"/>
+  <!-- Stand blocks: west LB -->
+  <rect x="{(CX+W_LL*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
+        width="{(W_IN-W_LL)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
+        fill="#2d3a5e" stroke="none"/>
+  <!-- Stand blocks: west club -->
+  <rect x="{(CX+W_CL*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
+        width="{(W_LL-W_CL)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
+        fill="#222a48" stroke="none"/>
+  <!-- Stand blocks: east end -->
+  <rect x="{(CX+E_IN*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
+        width="{(E_OUT-E_IN)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
+        fill="#2d3a5e" stroke="none"/>
+  <!-- Pitch (bright green so it pops) -->
+  <rect x="{psx*162/W:.1f}" y="{psy*142/H:.1f}"
+        width="{pw*162/W:.1f}" height="{ph*142/H:.1f}" fill="#3a9142"/>
+  <!-- Pitch halfway line -->
+  <line x1="{(CX)*162/W:.1f}" y1="{psy*142/H:.1f}"
+        x2="{(CX)*162/W:.1f}" y2="{(psy+ph)*142/H:.1f}"
+        stroke="rgba(255,255,255,0.35)" stroke-width="0.6"/>
+  <!-- Label -->
+  <text x="81" y="138" text-anchor="middle" fill="#6B7280"
+        font-size="7.5" font-family="Arial" font-weight="500">OVERVIEW</text>
+  <!-- Viewport indicator -->
+  <rect id="mmViewport" x="0" y="0" width="162" height="142"
+        fill="rgba(96,165,250,0.06)" stroke="#60A5FA" stroke-width="1.5" rx="3"/>
 </g>
 
 <!-- Zoom hint -->
@@ -731,7 +771,7 @@ def _build_stadium_svg(
   var ttr = document.getElementById('ttrect');
   var ttt = document.getElementById('tttext');
   var mmvp = document.getElementById('mmViewport');
-  var W = {W}, H = {H}, MMS = 160/W, MMH = 138/H;
+  var W = {W}, H = {H}, MMS = 162/W, MMH = 142/H;
 
   var zoom=1, panX=0, panY=0, drag=false, lx=0, ly=0;
 
@@ -739,8 +779,8 @@ def _build_stadium_svg(
     if(!mmvp) return;
     var vx = Math.max(0, (-panX/zoom)*MMS);
     var vy = Math.max(0, (-panY/zoom)*MMH);
-    var vw = Math.min(160-vx, (W/zoom)*MMS);
-    var vh = Math.min(138-vy, (H/zoom)*MMH);
+    var vw = Math.min(162-vx, (W/zoom)*MMS);
+    var vh = Math.min(142-vy, (H/zoom)*MMH);
     mmvp.setAttribute('x', vx.toFixed(1));
     mmvp.setAttribute('y', vy.toFixed(1));
     mmvp.setAttribute('width', Math.max(3,vw).toFixed(1));
