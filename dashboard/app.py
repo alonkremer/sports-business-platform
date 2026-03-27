@@ -420,8 +420,8 @@ def _build_stadium_svg(
     """Generate a professional SVG seat map for Snapdragon Stadium with zoom/pan."""
     import math
 
-    W, H = 1100, 960
-    CX, CY = 550, 450   # pitch centre
+    W, H = 1100, 790
+    CX, CY = 550, 385   # pitch centre (raised so south stand fits)
     SC = 175             # pixels per data unit
 
     def px(dx, dy):
@@ -1236,7 +1236,7 @@ def render_seat_map():
             highlighted_groups=highlighted_groups,
             selected_groups=selected_sections,
         )
-        st.components.v1.html(svg_html, height=870, scrolling=False)
+        st.components.v1.html(svg_html, height=1080, scrolling=False)
 
     # ── Info panel: selected section details ──────────────────────────────────
     if _has_selection and _info_col is not None:
