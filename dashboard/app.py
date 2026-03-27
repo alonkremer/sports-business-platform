@@ -691,7 +691,7 @@ def _build_stadium_svg(
 
     # ── Assemble SVG ──────────────────────────────────────────────────────
     svg = f"""<svg id="stadiumSvg" width="{W}" height="{H}" viewBox="0 0 {W} {H}"
-     xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">
+     xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;max-height:760px;display:block">
 <defs>
   <style>
     #stadiumSvg {{ cursor:grab; }}
@@ -746,8 +746,8 @@ def _build_stadium_svg(
         font-family="Arial" pointer-events="none">&#8635; Reset View</text>
 </g>
 
-<!-- Minimap (fixed, bottom-right) -->
-<g id="minimap" transform="translate({W-174},{H-152})">
+<!-- Minimap (fixed, top-right — always in view regardless of screen height) -->
+<g id="minimap" transform="translate({W-174},14)">
   <!-- Outer frame -->
   <rect x="0" y="0" width="162" height="142" rx="6"
         fill="#111827" stroke="#60A5FA" stroke-width="1.5"/>
@@ -799,9 +799,9 @@ def _build_stadium_svg(
         fill="rgba(96,165,250,0.12)" stroke="#60A5FA" stroke-width="2" rx="3"/>
 </g>
 
-<!-- Zoom hint -->
-<text x="{W-8}" y="{H-5}" text-anchor="end" fill="#374151" font-size="9"
-      font-family="Arial" pointer-events="none">scroll=zoom · drag=pan</text>
+<!-- Zoom hint (bottom-left, away from minimap) -->
+<text x="12" y="{H-6}" text-anchor="start" fill="#374151" font-size="9"
+      font-family="Arial" pointer-events="none">scroll = zoom  ·  drag = pan</text>
 
 <script>
 (function(){{
