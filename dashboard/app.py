@@ -231,6 +231,25 @@ SECTION_METADATA = {
 }
 
 
+# Number of individual sections rendered per group — used to split group capacity
+# into per-section seat counts for accurate dot rendering.
+SECTION_GROUP_COUNTS: dict[str, int] = {
+    "LB_101_105":   5,   # south lower: 101-105
+    "LB_106_110":   5,   # south lower: 106-110
+    "LB_111_115":   5,   # south lower 111-113 + west lower 114-115
+    "LB_116_120":   5,   # west lower: 116-120
+    "LB_121_123":   3,   # west lower corner: 121-123
+    "LB_133_135":   3,   # east corner: 133-135
+    "LB_141":       1,   # east corner: 141
+    "FC_C124_C132": 9,   # north field club: C124-C132
+    "GA_136_140":   5,   # east GA sandbox: 136-140
+    "UB_202_207":   6,   # south upper: 201-206
+    "UB_208_212":   5,   # south upper: 207-211
+    "WC_C223_C231": 9,   # west club/suites: C223-C231
+    "UC_323_334":  12,   # north upper concourse: 323-334
+}
+
+
 def _estimate_sth(grp: str, capacity: int) -> int:
     """Estimate season ticket holders for a section group based on tier."""
     meta = SECTION_METADATA.get(grp, {})
@@ -514,32 +533,55 @@ def _build_stadium_svg(
                     f'dominant-baseline="middle" fill="rgba(255,255,255,0.88)" '
                     f'font-size="{fsz}" font-family="Arial" font-weight="600" '
                     f'pointer-events="none">{ptxt}</text>')
-        # Seat dots — rendered at SVG scale, shown via CSS when zoomed in
-        _SP = 0.055   # data-unit spacing between seat centres
-        _DR = 2.5     # dot radius in SVG px
+        # ── Seat dots ─────────────────────────────────────────────────────────
+        # Derive per-section capacity from pipeline group capacity ÷ section count.
+        # Lay out exactly that many dots in a grid whose aspect ratio matches the
+        # physical section proportions, so dot spacing is uniform and realistic.
+        _grp_cap = section_data.get(grp, {}).get("capacity", 0)
+        _n_secs  = SECTION_GROUP_COUNTS.get(grp, 1)
+        _cap     = max(0, round(_grp_cap / _n_secs))
         _dots: list[str] = []
-        if rows == "h":
-            _rs = abs(y1 - y0) / (nr + 1)
-            _ns = max(2, round(abs(x1 - x0) / _SP))
-            _ss = abs(x1 - x0) / (_ns + 1)
-            _ys = 1 if y1 > y0 else -1;  _xs = 1 if x1 > x0 else -1
-            for _ri in range(1, nr + 1):
-                _ry = y0 + _ri * _rs * _ys
-                for _si in range(1, _ns + 1):
-                    _sx = x0 + _si * _ss * _xs
-                    _dcx, _dcy = px(_sx, _ry)
-                    _dots.append(f'<circle class="seat" cx="{_dcx:.1f}" cy="{_dcy:.1f}" r="{_DR}"/>')
-        else:
-            _cs = abs(x1 - x0) / (nr + 1)
-            _ns = max(2, round(abs(y1 - y0) / _SP))
-            _ss = abs(y1 - y0) / (_ns + 1)
-            _xs = 1 if x1 > x0 else -1;  _ys = 1 if y1 > y0 else -1
-            for _ci in range(1, nr + 1):
-                _cxd = x0 + _ci * _cs * _xs
-                for _si in range(1, _ns + 1):
-                    _sy = y0 + _si * _ss * _ys
-                    _dcx, _dcy = px(_cxd, _sy)
-                    _dots.append(f'<circle class="seat" cx="{_dcx:.1f}" cy="{_dcy:.1f}" r="{_DR}"/>')
+        if _cap > 0:
+            import math as _m
+            _wpx = abs(x1 - x0) * SC
+            _hpx = abs(y1 - y0) * SC
+            if rows == "h":
+                # Rows run horizontally (across width); each row has spr seats
+                _spr  = max(2, round(_m.sqrt(_cap * _wpx / max(1, _hpx))))
+                _nr_d = _m.ceil(_cap / _spr)
+                _rs_u = abs(y1 - y0) / (_nr_d + 1)   # row step (data units)
+                _ss_u = abs(x1 - x0) / (_spr  + 1)   # seat step (data units)
+                _dr   = max(0.7, min(2.2, min(_rs_u, _ss_u) * SC * 0.40))
+                _ys   = 1 if y1 > y0 else -1
+                _xs   = 1 if x1 > x0 else -1
+                _n    = 0
+                for _ri in range(1, _nr_d + 1):
+                    _row_n = min(_spr, _cap - _n)
+                    if _row_n <= 0: break
+                    _ry = y0 + _ri * _rs_u * _ys
+                    for _si in range(1, _row_n + 1):
+                        _sx = x0 + _si * _ss_u * _xs
+                        _cx, _cy = px(_sx, _ry)
+                        _dots.append(f'<circle class="seat" cx="{_cx:.1f}" cy="{_cy:.1f}" r="{_dr:.2f}"/>')
+                        _n += 1
+            else:  # "v" — columns run vertically; each column has spc seats
+                _spc  = max(2, round(_m.sqrt(_cap * _hpx / max(1, _wpx))))
+                _nc_d = _m.ceil(_cap / _spc)
+                _cs_u = abs(x1 - x0) / (_nc_d + 1)
+                _ss_u = abs(y1 - y0) / (_spc  + 1)
+                _dr   = max(0.7, min(2.2, min(_cs_u, _ss_u) * SC * 0.40))
+                _xs   = 1 if x1 > x0 else -1
+                _ys   = 1 if y1 > y0 else -1
+                _n    = 0
+                for _ci in range(1, _nc_d + 1):
+                    _col_n = min(_spc, _cap - _n)
+                    if _col_n <= 0: break
+                    _cxd = x0 + _ci * _cs_u * _xs
+                    for _si in range(1, _col_n + 1):
+                        _sy = y0 + _si * _ss_u * _ys
+                        _cx, _cy = px(_cxd, _sy)
+                        _dots.append(f'<circle class="seat" cx="{_cx:.1f}" cy="{_cy:.1f}" r="{_dr:.2f}"/>')
+                        _n += 1
         _dsv = "\n  ".join(_dots)
         sections_svg.append(
             f'<g class="sec" data-tip="{tip}" data-grp="{grp}" style="opacity:{opac}">\n'
@@ -666,7 +708,7 @@ def _build_stadium_svg(
     #stadiumSvg.zoomed .sec:hover .sec-fill {{ opacity:0.25 !important; }}
     #resetBtn rect {{ fill:rgba(20,30,55,0.92); transition:fill 0.15s; }}
     #resetBtn:hover rect {{ fill:rgba(50,65,100,0.95); cursor:pointer; }}
-    #minimap {{ pointer-events:none; opacity:0.88; }}
+    #minimap {{ pointer-events:none; opacity:1; }}
   </style>
 </defs>
 
@@ -705,18 +747,56 @@ def _build_stadium_svg(
 </g>
 
 <!-- Minimap (fixed, bottom-right) -->
-<g id="minimap" transform="translate({W-172},{H-150})">
-  <rect x="0" y="0" width="160" height="138" rx="5"
-        fill="rgba(8,10,25,0.88)" stroke="#374151" stroke-width="1"/>
-  <rect x="{bx0*160/W:.1f}" y="{by0*138/H:.1f}"
-        width="{(bx1-bx0)*160/W:.1f}" height="{(by1-by0)*138/H:.1f}"
-        rx="3" fill="#181b2e" stroke="#2b2f4a" stroke-width="0.8"/>
-  <rect x="{psx*160/W:.1f}" y="{psy*138/H:.1f}"
-        width="{pw*160/W:.1f}" height="{ph*138/H:.1f}" fill="#2e7d32"/>
-  <text x="80" y="133" text-anchor="middle" fill="#4B5563"
-        font-size="8" font-family="Arial">OVERVIEW</text>
-  <rect id="mmViewport" x="0" y="0" width="160" height="138"
-        fill="rgba(96,165,250,0.08)" stroke="#60A5FA" stroke-width="1.5" rx="2"/>
+<g id="minimap" transform="translate({W-174},{H-152})">
+  <!-- Outer frame -->
+  <rect x="0" y="0" width="162" height="142" rx="6"
+        fill="#111827" stroke="#60A5FA" stroke-width="1.5"/>
+  <!-- Bowl area -->
+  <rect x="{bx0*162/W:.1f}" y="{by0*142/H:.1f}"
+        width="{(bx1-bx0)*162/W:.1f}" height="{(by1-by0)*142/H:.1f}"
+        rx="3" fill="#1e2440" stroke="#4B5563" stroke-width="0.8"/>
+  <!-- North upper concourse (300-level) -->
+  <rect x="{(CX-S_XSPAN*SC)*162/W:.1f}" y="{(CY-N_UC*SC)*142/H:.1f}"
+        width="{2*S_XSPAN*SC*162/W:.1f}" height="{(N_UC-N_FC)*SC*142/H:.1f}"
+        fill="#4a5880"/>
+  <!-- North field club -->
+  <rect x="{(CX-S_XSPAN*SC)*162/W:.1f}" y="{(CY-N_FC*SC)*142/H:.1f}"
+        width="{2*S_XSPAN*SC*162/W:.1f}" height="{(N_FC-N_IN)*SC*142/H:.1f}"
+        fill="#5c6ea0"/>
+  <!-- South lower bowl (100-level) -->
+  <rect x="{(CX-S_XSPAN*SC)*162/W:.1f}" y="{(CY-S_IN*SC)*142/H:.1f}"
+        width="{2*S_XSPAN*SC*162/W:.1f}" height="{abs(S_IN-S_LL)*SC*142/H:.1f}"
+        fill="#5c6ea0"/>
+  <!-- South upper bowl (200-level) -->
+  <rect x="{(CX-S_XSPAN*SC)*162/W:.1f}" y="{(CY-S_LL*SC)*142/H:.1f}"
+        width="{2*S_XSPAN*SC*162/W:.1f}" height="{abs(S_LL-S_UB)*SC*142/H:.1f}"
+        fill="#4a5880"/>
+  <!-- West lower bowl -->
+  <rect x="{(CX+W_LL*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
+        width="{abs(W_IN-W_LL)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
+        fill="#5c6ea0"/>
+  <!-- West club level -->
+  <rect x="{(CX+W_CL*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
+        width="{abs(W_LL-W_CL)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
+        fill="#4a5880"/>
+  <!-- East end -->
+  <rect x="{(CX+E_IN*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
+        width="{abs(E_OUT-E_IN)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
+        fill="#5c6ea0"/>
+  <!-- Pitch — vivid green so it's instantly recognisable -->
+  <rect x="{psx*162/W:.1f}" y="{psy*142/H:.1f}"
+        width="{pw*162/W:.1f}" height="{ph*142/H:.1f}" fill="#22c55e"/>
+  <!-- Halfway line -->
+  <line x1="{CX*162/W:.1f}" y1="{psy*142/H:.1f}"
+        x2="{CX*162/W:.1f}" y2="{(psy+ph)*142/H:.1f}"
+        stroke="rgba(255,255,255,0.5)" stroke-width="0.8"/>
+  <!-- Label -->
+  <text x="81" y="138" text-anchor="middle" fill="#9CA3AF"
+        font-size="8" font-family="Arial" font-weight="600"
+        letter-spacing="0.05em">OVERVIEW</text>
+  <!-- Viewport indicator -->
+  <rect id="mmViewport" x="0" y="0" width="162" height="142"
+        fill="rgba(96,165,250,0.12)" stroke="#60A5FA" stroke-width="2" rx="3"/>
 </g>
 
 <!-- Zoom hint -->
@@ -731,7 +811,7 @@ def _build_stadium_svg(
   var ttr = document.getElementById('ttrect');
   var ttt = document.getElementById('tttext');
   var mmvp = document.getElementById('mmViewport');
-  var W = {W}, H = {H}, MMS = 160/W, MMH = 138/H;
+  var W = {W}, H = {H}, MMS = 162/W, MMH = 142/H;
 
   var zoom=1, panX=0, panY=0, drag=false, lx=0, ly=0;
 
@@ -739,8 +819,8 @@ def _build_stadium_svg(
     if(!mmvp) return;
     var vx = Math.max(0, (-panX/zoom)*MMS);
     var vy = Math.max(0, (-panY/zoom)*MMH);
-    var vw = Math.min(160-vx, (W/zoom)*MMS);
-    var vh = Math.min(138-vy, (H/zoom)*MMH);
+    var vw = Math.min(162-vx, (W/zoom)*MMS);
+    var vh = Math.min(142-vy, (H/zoom)*MMH);
     mmvp.setAttribute('x', vx.toFixed(1));
     mmvp.setAttribute('y', vy.toFixed(1));
     mmvp.setAttribute('width', Math.max(3,vw).toFixed(1));
