@@ -136,41 +136,41 @@ def _espn_logo(team_id: int) -> str:
     return f"https://a.espncdn.com/i/teamlogos/soccer/500/{team_id}.png"
 
 MLS_TEAMS = {
-    "Atlanta United":         {"conf": "East",    "color": "#80000A", "logo": _espn_logo(1626)},
-    "Austin FC":              {"conf": "West",    "color": "#00B140", "logo": _espn_logo(18092)},
-    "Charlotte FC":           {"conf": "East",    "color": "#1A85C8", "logo": _espn_logo(22139)},
-    "Chicago Fire":           {"conf": "East",    "color": "#9A1B2F", "logo": _espn_logo(433)},
-    "FC Cincinnati":          {"conf": "East",    "color": "#003087", "logo": _espn_logo(18078)},
-    "Colorado Rapids":        {"conf": "West",    "color": "#862633", "logo": _espn_logo(430)},
-    "Columbus Crew":          {"conf": "East",    "color": "#FEDD00", "logo": _espn_logo(424)},
-    "D.C. United":            {"conf": "East",    "color": "#EF3E42", "logo": _espn_logo(431)},
-    "FC Dallas":              {"conf": "West",    "color": "#BF0D3E", "logo": _espn_logo(425)},
-    "Houston Dynamo":         {"conf": "West",    "color": "#F4911E", "logo": _espn_logo(429)},
-    "Sporting KC":            {"conf": "West",    "color": "#002F6C", "logo": _espn_logo(426)},
-    "LA Galaxy":              {"conf": "West",    "color": "#00245D", "logo": _espn_logo(403)},
-    "LAFC":                   {"conf": "West",    "color": "#C39E6D", "logo": _espn_logo(16032)},
-    "Inter Miami":            {"conf": "East",    "color": "#F7B5CD", "logo": _espn_logo(22106)},
-    "Minnesota United":       {"conf": "West",    "color": "#8CD2F4", "logo": _espn_logo(18463)},
-    "CF Montreal":            {"conf": "East",    "color": "#003DA5", "logo": _espn_logo(432)},
-    "Nashville SC":           {"conf": "West",    "color": "#ECE83A", "logo": _espn_logo(18093)},
-    "New England Revolution": {"conf": "East",    "color": "#C63323", "logo": _espn_logo(423)},
-    "NY Red Bulls":           {"conf": "East",    "color": "#EF3E42", "logo": _espn_logo(427)},
-    "NYCFC":                  {"conf": "East",    "color": "#6CACE4", "logo": _espn_logo(16033)},
-    "Orlando City":           {"conf": "East",    "color": "#633492", "logo": _espn_logo(17063)},
-    "Philadelphia Union":     {"conf": "East",    "color": "#071B2C", "logo": _espn_logo(16035)},
-    "Portland Timbers":       {"conf": "West",    "color": "#004812", "logo": _espn_logo(9728)},
-    "Real Salt Lake":         {"conf": "West",    "color": "#B30838", "logo": _espn_logo(428)},
-    "San Jose Earthquakes":   {"conf": "West",    "color": "#0D4C92", "logo": _espn_logo(404)},
+    "Atlanta United":         {"conf": "East",    "color": "#80000A", "logo": _espn_logo(18418)},
+    "Austin FC":              {"conf": "West",    "color": "#00B140", "logo": _espn_logo(20906)},
+    "Charlotte FC":           {"conf": "East",    "color": "#1A85C8", "logo": _espn_logo(21300)},
+    "Chicago Fire":           {"conf": "East",    "color": "#9A1B2F", "logo": _espn_logo(182)},
+    "FC Cincinnati":          {"conf": "East",    "color": "#003087", "logo": _espn_logo(18267)},
+    "Colorado Rapids":        {"conf": "West",    "color": "#862633", "logo": _espn_logo(184)},
+    "Columbus Crew":          {"conf": "East",    "color": "#FEDD00", "logo": _espn_logo(183)},
+    "D.C. United":            {"conf": "East",    "color": "#EF3E42", "logo": _espn_logo(193)},
+    "FC Dallas":              {"conf": "West",    "color": "#BF0D3E", "logo": _espn_logo(185)},
+    "Houston Dynamo":         {"conf": "West",    "color": "#F4911E", "logo": _espn_logo(6077)},
+    "Sporting KC":            {"conf": "West",    "color": "#002F6C", "logo": _espn_logo(186)},
+    "LA Galaxy":              {"conf": "West",    "color": "#00245D", "logo": _espn_logo(187)},
+    "LAFC":                   {"conf": "West",    "color": "#C39E6D", "logo": _espn_logo(18966)},
+    "Inter Miami":            {"conf": "East",    "color": "#F7B5CD", "logo": _espn_logo(20232)},
+    "Minnesota United":       {"conf": "West",    "color": "#8CD2F4", "logo": _espn_logo(17362)},
+    "CF Montreal":            {"conf": "East",    "color": "#003DA5", "logo": _espn_logo(9720)},
+    "Nashville SC":           {"conf": "West",    "color": "#ECE83A", "logo": _espn_logo(18986)},
+    "New England Revolution": {"conf": "East",    "color": "#C63323", "logo": _espn_logo(189)},
+    "NY Red Bulls":           {"conf": "East",    "color": "#EF3E42", "logo": _espn_logo(190)},
+    "NYCFC":                  {"conf": "East",    "color": "#6CACE4", "logo": _espn_logo(17606)},
+    "Orlando City":           {"conf": "East",    "color": "#633492", "logo": _espn_logo(12011)},
+    "Philadelphia Union":     {"conf": "East",    "color": "#071B2C", "logo": _espn_logo(10739)},
+    "Portland Timbers":       {"conf": "West",    "color": "#004812", "logo": _espn_logo(9723)},
+    "Real Salt Lake":         {"conf": "West",    "color": "#B30838", "logo": _espn_logo(4771)},
+    "San Jose Earthquakes":   {"conf": "West",    "color": "#0D4C92", "logo": _espn_logo(191)},
     "Seattle Sounders":       {"conf": "West",    "color": "#5D9741", "logo": _espn_logo(9726)},
-    "St. Louis City SC":      {"conf": "West",    "color": "#EF3340", "logo": _espn_logo(22193)},
-    "Toronto FC":             {"conf": "East",    "color": "#E31937", "logo": _espn_logo(9730)},
+    "St. Louis City SC":      {"conf": "West",    "color": "#EF3340", "logo": _espn_logo(21812)},
+    "Toronto FC":             {"conf": "East",    "color": "#E31937", "logo": _espn_logo(7318)},
     "Vancouver Whitecaps":    {"conf": "West",    "color": "#9DC2EA", "logo": _espn_logo(9727)},
-    "Club Tijuana":           {"conf": "Liga MX", "color": "#CC0000", "logo": _espn_logo(4489)},
-    "Chivas":                 {"conf": "Liga MX", "color": "#CC0000", "logo": _espn_logo(4396)},
-    "Club América":           {"conf": "Liga MX", "color": "#FFDD00", "logo": _espn_logo(4385)},
-    "Cruz Azul":              {"conf": "Liga MX", "color": "#003DA5", "logo": _espn_logo(4397)},
-    "Pumas UNAM":             {"conf": "Liga MX", "color": "#003DA5", "logo": _espn_logo(4387)},
-    "Pachuca":                {"conf": "Liga MX", "color": "#0057A8", "logo": _espn_logo(4406)},
+    "Club Tijuana":           {"conf": "Liga MX", "color": "#CC0000", "logo": _espn_logo(10125)},
+    "Chivas":                 {"conf": "Liga MX", "color": "#CC0000", "logo": _espn_logo(219)},
+    "Club América":           {"conf": "Liga MX", "color": "#FFDD00", "logo": _espn_logo(227)},
+    "Cruz Azul":              {"conf": "Liga MX", "color": "#003DA5", "logo": _espn_logo(218)},
+    "Pumas UNAM":             {"conf": "Liga MX", "color": "#003DA5", "logo": _espn_logo(233)},
+    "Pachuca":                {"conf": "Liga MX", "color": "#0057A8", "logo": _espn_logo(234)},
 }
 
 
@@ -793,14 +793,15 @@ def render_seat_map():
     # ── Clicked section from URL query param (set by JS on map click) ─────────
     clicked_group = st.query_params.get("sec", None)
 
-    # ── Controls row ─────────────────────────────────────────────────────────
-    ctrl1, ctrl2, ctrl3 = st.columns([1, 3, 2])
+    # ── View mode (full-width, horizontal) ───────────────────────────────────
+    view_mode = st.radio(
+        "View Mode", ["Single Game", "Season Ticket"],
+        horizontal=True,
+        help="Single Game: price map for one match.  Season Ticket: average across the full season.",
+    )
 
-    with ctrl1:
-        view_mode = st.radio(
-            "View Mode", ["Single Game", "Season Ticket"],
-            help="Single Game: price map for one match.  Season Ticket: average across the full season.",
-        )
+    # ── Controls row ─────────────────────────────────────────────────────────
+    ctrl2, ctrl3 = st.columns([3, 2])
 
     if view_mode == "Season Ticket":
         with ctrl2:
