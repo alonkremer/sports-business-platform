@@ -28,6 +28,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from loguru import logger
 
 from api.schemas import (
@@ -221,6 +222,11 @@ def _build_recommendation(row: pd.Series, optimizer_row: Optional[pd.DataFrame])
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
+
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/docs")
+
 
 @app.get("/health")
 async def health():
