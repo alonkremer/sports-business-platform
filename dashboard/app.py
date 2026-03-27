@@ -399,13 +399,13 @@ def _build_stadium_svg(
     PX0, PX1 = -1.05,  1.05   # pitch east-west edges
     PY0, PY1 = -0.68,  0.68   # pitch north-south edges
 
-    S_IN,  S_LL,  S_UB = PY0, -1.22, -1.58   # south tiers (more negative = further away)
-    N_IN,  N_FC,  N_UC = PY1,  1.14,  1.54   # north tiers
+    S_IN,  S_LL,  S_UB = PY0, -1.22, -1.72   # south tiers — deeper to show 3-level asymmetry
+    N_IN,  N_FC,  N_UC = PY1,  1.14,  1.50   # north tiers — shallower (2-level)
     S_XSPAN = 1.15   # south/north half-width
 
     W_IN,  W_LL,  W_CL = PX0, -1.55, -1.92   # west tiers
     E_IN,  E_OUT        = PX1,  1.52           # east end
-    G_YSPAN = PY1                              # ±0.68 for goal-end height
+    G_YSPAN = PY1                              # ±0.68 — goal-end y half-height matches pitch height
 
     # ── Color helpers ──────────────────────────────────────────────────────
     def sec_fill(grp):
@@ -532,8 +532,9 @@ def _build_stadium_svg(
 
     # ═══════════════════════════════════════════════════════════════════════
     # NORTH FIELD CLUB — 9 sections (C124-C132), west → east
+    # Span ±S_XSPAN (same as UC) so the north stand has no stepped corners
     # ═══════════════════════════════════════════════════════════════════════
-    _fb = [PX0 + i*(2.10/9) for i in range(10)]
+    _fb = [-S_XSPAN + i*(2*S_XSPAN/9) for i in range(10)]
     for i in range(9):
         add_sec(f"C{124+i}", "FC_C124_C132", _fb[i], _fb[i+1], N_IN, N_FC, rows="h", nr=18)
 
@@ -600,16 +601,16 @@ def _build_stadium_svg(
                 f'font-family="Arial" font-weight="{weight}" pointer-events="none">{text}</text>')
 
     area_labels = [
-        tlbl("NORTH  ·  Field Club & Concourse",  0,     1.74, 10),
-        tlbl("SOUTH SIDELINE",                     0,    -1.79, 10),
-        tlbl("W",  -1.78, 0, 10), tlbl("E", 1.63, 0, 10),
+        tlbl("NORTH  ·  Field Club & Concourse",  0,     1.70, 10),
+        tlbl("SOUTH SIDELINE",                     0,    -1.86, 10),
+        tlbl("W",  -2.01, 0, 10), tlbl("E", 1.63, 0, 10),
         tlbl("Toyota Terrace",       0,     1.34, 8, "#D1D5DB", "italic"),
         tlbl("Sandbox GA",           1.29,  0,    7, "#D1D5DB", "italic"),
-        tlbl("Founders Club",       -1.74,  0,    7, "#D1D5DB", "italic"),
+        tlbl("Founders Club",       -2.00,  0,    7, "#D1D5DB", "italic"),
     ]
 
     # ── Bowl background ────────────────────────────────────────────────────
-    bx0, by0 = px(-2.05, 1.72); bx1, by1 = px(2.05, -1.75)
+    bx0, by0 = px(-2.05, 1.68); bx1, by1 = px(2.05, -1.88)
 
     # ── Assemble SVG ──────────────────────────────────────────────────────
     svg = f"""<svg id="stadiumSvg" width="{W}" height="{H}" viewBox="0 0 {W} {H}"
