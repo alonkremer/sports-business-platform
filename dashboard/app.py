@@ -1121,11 +1121,15 @@ def _render_section_table(
         return f"?secs={','.join(new)}" if new else "?"
 
     def _rec_badge(pchg: float) -> str:
-        if pchg > 15:   return '<span style="color:#60A5FA;font-weight:700">↑↑ Raise</span>'
-        if pchg > 5:    return '<span style="color:#93C5FD">↑ Slight raise</span>'
-        if pchg < -15:  return '<span style="color:#FCA5A5;font-weight:700">↓↓ Lower</span>'
-        if pchg < -5:   return '<span style="color:#FCD34D">↓ Slight lower</span>'
-        return '<span style="color:#9CA3AF">→ Hold</span>'
+        """Colored ±% badge matching the map's blue→white→red gradient."""
+        sign = "+" if pchg > 0 else ""
+        val  = f"{sign}{pchg:.1f}%"
+        if pchg > 15:  color = "#60A5FA"; weight = "700"
+        elif pchg > 5: color = "#93C5FD"; weight = "600"
+        elif pchg < -15: color = "#F87171"; weight = "700"
+        elif pchg < -5:  color = "#FCA5A5"; weight = "600"
+        else:            color = "#9CA3AF"; weight = "400"
+        return f'<span style="color:{color};font-weight:{weight};font-variant-numeric:tabular-nums">{val}</span>'
 
     rows_html = []
     for grp in show_grps:
@@ -1162,7 +1166,7 @@ def _render_section_table(
             f'<td style="padding:7px 10px;color:#D1D5DB;text-align:right">${avg_p:,.0f}</td>'
             f'<td style="padding:7px 10px;color:#D1D5DB;text-align:right">${t_rev:,.0f}</td>'
             f'<td style="padding:7px 10px;color:#10B981;text-align:right;font-weight:600">${p_rev:,.0f}</td>'
-            f'<td style="padding:7px 12px;text-align:center">{_rec_badge(pchg)}</td>'
+            f'<td style="padding:7px 12px;text-align:right">{_rec_badge(pchg)}</td>'
             f'</tr>'
         )
 
@@ -1183,7 +1187,7 @@ def _render_section_table(
         f'<th style="{th};padding:9px 10px;text-align:right">Avg Price</th>'
         f'<th style="{th};padding:9px 10px;text-align:right">Ticket Revenue</th>'
         f'<th style="{th};padding:9px 10px;text-align:right">Potential Rev</th>'
-        f'<th style="{th};padding:9px 12px;text-align:center">Recommendation</th>'
+        f'<th style="{th};padding:9px 12px;text-align:right">Price Adj.</th>'
         '</tr></thead>'
         f'<tbody>{"".join(rows_html)}</tbody>'
         '</table></div>'
