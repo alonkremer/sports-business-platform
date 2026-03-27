@@ -1030,15 +1030,64 @@ def render_seat_map():
         selected_row = filtered[filtered["game_id"] == selected_game_id]
         selected_opponent = selected_row.iloc[0]["opponent"] if not selected_row.empty else None
 
-        if selected_opponent:
+        if selected_opponent and not selected_row.empty:
             opp_info = MLS_TEAMS.get(selected_opponent, {})
             opp_conf = opp_info.get("conf", "")
-            opp_comp = selected_row.iloc[0]["competition"] if not selected_row.empty else ""
+            opp_comp = selected_row.iloc[0]["competition"]
             st.markdown(
-                f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
+                f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
                 f'{_team_badge_svg(selected_opponent, size=36)}'
                 f'<span style="font-size:14px;color:#E5E7EB;font-weight:600">{selected_opponent}</span>'
                 f'<span style="font-size:12px;color:#9CA3AF">{opp_conf} · {opp_comp}</span></div>',
+                unsafe_allow_html=True,
+            )
+            # ── Match Significance Breakdown ──────────────────────────────
+            _gr = selected_row.iloc[0]
+            _sig_components = [
+                ("is_baja_cup",      "Baja Cup",       3.0, "🏆"),
+                ("is_rivalry",       "Rivalry",        2.0, "⚔️"),
+                ("is_marquee",       "Marquee",        2.0, "⭐"),
+                ("is_season_opener", "Opener",         2.0, "🎉"),
+                ("is_decision_day",  "Decision Day",   1.5, "🏁"),
+            ]
+            # star_player flag may appear under different column names
+            _star_col = next((c for c in ["star_player_on_opponent", "g3_star_player_on_opp"]
+                               if c in _gr.index), None)
+            if _star_col:
+                _sig_components.append((_star_col, "Star Player", 1.5, "🌟"))
+
+            _MAX_SCORE = sum(w for _, _, w, _ in _sig_components)
+            _score = sum(w for col, _, w, _ in _sig_components if bool(_gr.get(col, False)))
+            _active = [(lbl, w, icon) for col, lbl, w, icon in _sig_components
+                       if bool(_gr.get(col, False))]
+
+            # Score bar color
+            _bar_pct = int(_score / _MAX_SCORE * 100) if _MAX_SCORE else 0
+            _bar_col = "#F59E0B" if _score >= 4 else ("#60A5FA" if _score >= 2 else "#374151")
+
+            # Chip HTML for active flags
+            _chips = "".join(
+                f'<span style="background:#1f2937;border:1px solid {_bar_col}33;'
+                f'border-radius:4px;padding:2px 7px;font-size:11px;color:#E5E7EB;white-space:nowrap">'
+                f'{icon} {lbl} <span style="color:{_bar_col};font-weight:700">+{w:.0f}</span></span>'
+                for lbl, w, icon in _active
+            ) if _active else (
+                '<span style="font-size:11px;color:#4B5563;font-style:italic">No special flags</span>'
+            )
+
+            st.markdown(
+                f'<div style="background:#0f1423;border:1px solid #1f2937;border-radius:8px;'
+                f'padding:10px 14px;margin-bottom:8px">'
+                f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+                f'<span style="font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em">'
+                f'Match Significance</span>'
+                f'<span style="font-size:16px;font-weight:700;color:{_bar_col}">'
+                f'{_score:.1f} / {_MAX_SCORE:.1f}</span></div>'
+                f'<div style="background:#1a1d2e;border-radius:3px;height:5px;margin-bottom:8px">'
+                f'<div style="background:{_bar_col};width:{_bar_pct}%;height:5px;border-radius:3px;'
+                f'transition:width 0.3s"></div></div>'
+                f'<div style="display:flex;flex-wrap:wrap;gap:5px">{_chips}</div>'
+                f'</div>',
                 unsafe_allow_html=True,
             )
 
