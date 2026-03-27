@@ -669,7 +669,7 @@ def _build_stadium_svg(
     #stadiumSvg.zoomed .sec:hover .sec-fill {{ opacity:0.25 !important; }}
     #resetBtn rect {{ fill:rgba(20,30,55,0.92); transition:fill 0.15s; }}
     #resetBtn:hover rect {{ fill:rgba(50,65,100,0.95); cursor:pointer; }}
-    #minimap {{ pointer-events:none; opacity:0.88; }}
+    #minimap {{ pointer-events:none; opacity:1; }}
   </style>
 </defs>
 
@@ -707,56 +707,57 @@ def _build_stadium_svg(
         font-family="Arial" pointer-events="none">&#8635; Reset View</text>
 </g>
 
-<!-- Minimap (fixed, bottom-right) — pre-compute all coords in Python -->
+<!-- Minimap (fixed, bottom-right) -->
 <g id="minimap" transform="translate({W-174},{H-152})">
   <!-- Outer frame -->
   <rect x="0" y="0" width="162" height="142" rx="6"
-        fill="#0d1220" stroke="#4B5563" stroke-width="1.5"/>
-  <!-- Bowl fill -->
+        fill="#111827" stroke="#60A5FA" stroke-width="1.5"/>
+  <!-- Bowl area -->
   <rect x="{bx0*162/W:.1f}" y="{by0*142/H:.1f}"
         width="{(bx1-bx0)*162/W:.1f}" height="{(by1-by0)*142/H:.1f}"
-        rx="3" fill="#1a1f38" stroke="#3B4060" stroke-width="1"/>
-  <!-- Stand blocks: north UC -->
+        rx="3" fill="#1e2440" stroke="#4B5563" stroke-width="0.8"/>
+  <!-- North upper concourse (300-level) -->
   <rect x="{(CX-S_XSPAN*SC)*162/W:.1f}" y="{(CY-N_UC*SC)*142/H:.1f}"
         width="{2*S_XSPAN*SC*162/W:.1f}" height="{(N_UC-N_FC)*SC*142/H:.1f}"
-        fill="#2d3a5e" stroke="none"/>
-  <!-- Stand blocks: north FC -->
+        fill="#4a5880"/>
+  <!-- North field club -->
   <rect x="{(CX-S_XSPAN*SC)*162/W:.1f}" y="{(CY-N_FC*SC)*142/H:.1f}"
         width="{2*S_XSPAN*SC*162/W:.1f}" height="{(N_FC-N_IN)*SC*142/H:.1f}"
-        fill="#364470" stroke="none"/>
-  <!-- Stand blocks: south LB -->
+        fill="#5c6ea0"/>
+  <!-- South lower bowl (100-level) -->
   <rect x="{(CX-S_XSPAN*SC)*162/W:.1f}" y="{(CY-S_IN*SC)*142/H:.1f}"
-        width="{2*S_XSPAN*SC*162/W:.1f}" height="{(S_IN-S_LL)*SC*142/H:.1f}"
-        fill="#2d3a5e" stroke="none"/>
-  <!-- Stand blocks: south UB -->
+        width="{2*S_XSPAN*SC*162/W:.1f}" height="{abs(S_IN-S_LL)*SC*142/H:.1f}"
+        fill="#5c6ea0"/>
+  <!-- South upper bowl (200-level) -->
   <rect x="{(CX-S_XSPAN*SC)*162/W:.1f}" y="{(CY-S_LL*SC)*142/H:.1f}"
-        width="{2*S_XSPAN*SC*162/W:.1f}" height="{(S_LL-S_UB)*SC*142/H:.1f}"
-        fill="#222a48" stroke="none"/>
-  <!-- Stand blocks: west LB -->
+        width="{2*S_XSPAN*SC*162/W:.1f}" height="{abs(S_LL-S_UB)*SC*142/H:.1f}"
+        fill="#4a5880"/>
+  <!-- West lower bowl -->
   <rect x="{(CX+W_LL*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
-        width="{(W_IN-W_LL)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
-        fill="#2d3a5e" stroke="none"/>
-  <!-- Stand blocks: west club -->
+        width="{abs(W_IN-W_LL)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
+        fill="#5c6ea0"/>
+  <!-- West club level -->
   <rect x="{(CX+W_CL*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
-        width="{(W_LL-W_CL)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
-        fill="#222a48" stroke="none"/>
-  <!-- Stand blocks: east end -->
+        width="{abs(W_LL-W_CL)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
+        fill="#4a5880"/>
+  <!-- East end -->
   <rect x="{(CX+E_IN*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
-        width="{(E_OUT-E_IN)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
-        fill="#2d3a5e" stroke="none"/>
-  <!-- Pitch (bright green so it pops) -->
+        width="{abs(E_OUT-E_IN)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
+        fill="#5c6ea0"/>
+  <!-- Pitch — vivid green so it's instantly recognisable -->
   <rect x="{psx*162/W:.1f}" y="{psy*142/H:.1f}"
-        width="{pw*162/W:.1f}" height="{ph*142/H:.1f}" fill="#3a9142"/>
-  <!-- Pitch halfway line -->
-  <line x1="{(CX)*162/W:.1f}" y1="{psy*142/H:.1f}"
-        x2="{(CX)*162/W:.1f}" y2="{(psy+ph)*142/H:.1f}"
-        stroke="rgba(255,255,255,0.35)" stroke-width="0.6"/>
+        width="{pw*162/W:.1f}" height="{ph*142/H:.1f}" fill="#22c55e"/>
+  <!-- Halfway line -->
+  <line x1="{CX*162/W:.1f}" y1="{psy*142/H:.1f}"
+        x2="{CX*162/W:.1f}" y2="{(psy+ph)*142/H:.1f}"
+        stroke="rgba(255,255,255,0.5)" stroke-width="0.8"/>
   <!-- Label -->
-  <text x="81" y="138" text-anchor="middle" fill="#6B7280"
-        font-size="7.5" font-family="Arial" font-weight="500">OVERVIEW</text>
+  <text x="81" y="138" text-anchor="middle" fill="#9CA3AF"
+        font-size="8" font-family="Arial" font-weight="600"
+        letter-spacing="0.05em">OVERVIEW</text>
   <!-- Viewport indicator -->
   <rect id="mmViewport" x="0" y="0" width="162" height="142"
-        fill="rgba(96,165,250,0.06)" stroke="#60A5FA" stroke-width="1.5" rx="3"/>
+        fill="rgba(96,165,250,0.12)" stroke="#60A5FA" stroke-width="2" rx="3"/>
 </g>
 
 <!-- Zoom hint -->
