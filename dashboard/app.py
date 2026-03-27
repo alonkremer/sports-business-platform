@@ -466,26 +466,17 @@ def _build_stadium_svg(
         return 0.65
 
     def hover_txt(lbl, grp):
+        """Minimal tooltip — just enough to identify the section."""
         meta = SECTION_METADATA.get(grp, {})
-        d    = section_data.get(grp, {})
-        base = f"Sec {lbl}"
+        tip  = f"Sec {lbl}"
         if meta:
-            base += f" · {meta.get('seat_type','')} · {meta.get('level','')}"
-        if not d:
-            return base + " (no data)"
-        face = d.get("face_price", 0)
-        scen = d.get("scenario_price", face)
-        pchg = d.get("price_change_pct", 0)
-        ap   = abs(pchg)
-        conf = 5 if ap > 18 else (4 if ap > 10 else (3 if ap > 6 else (2 if ap > 3 else 4)))
-        if pchg > 15:    rec = "Price increase recommended"
-        elif pchg > 5:   rec = "Slight price increase recommended"
-        elif pchg < -15: rec = "Price decrease recommended"
-        elif pchg < -5:  rec = "Slight price decrease recommended"
-        else:            rec = "No change recommended"
-        lo, hi = scen * 0.96, scen * 1.04
-        dots = "●" * conf + "○" * (5 - conf)
-        return f"{base} | {rec} | ${lo:.0f}–${hi:.0f} | Conf {dots} {conf}/5"
+            tip += f"  ·  {meta.get('seat_type', '')}  ·  {meta.get('level', '')}  ·  {meta.get('view_angle', '')}"
+        d = section_data.get(grp, {})
+        if d:
+            pchg = d.get("price_change_pct", 0)
+            sign = "+" if pchg > 0 else ""
+            tip += f"  ·  {sign}{pchg:.1f}%"
+        return tip
 
     # ── Row lines ──────────────────────────────────────────────────────────
     def rlines_h(x0, x1, y0, y1, n=18):
@@ -523,10 +514,38 @@ def _build_stadium_svg(
                     f'dominant-baseline="middle" fill="rgba(255,255,255,0.88)" '
                     f'font-size="{fsz}" font-family="Arial" font-weight="600" '
                     f'pointer-events="none">{ptxt}</text>')
+        # Seat dots — rendered at SVG scale, shown via CSS when zoomed in
+        _SP = 0.055   # data-unit spacing between seat centres
+        _DR = 2.5     # dot radius in SVG px
+        _dots: list[str] = []
+        if rows == "h":
+            _rs = abs(y1 - y0) / (nr + 1)
+            _ns = max(2, round(abs(x1 - x0) / _SP))
+            _ss = abs(x1 - x0) / (_ns + 1)
+            _ys = 1 if y1 > y0 else -1;  _xs = 1 if x1 > x0 else -1
+            for _ri in range(1, nr + 1):
+                _ry = y0 + _ri * _rs * _ys
+                for _si in range(1, _ns + 1):
+                    _sx = x0 + _si * _ss * _xs
+                    _dcx, _dcy = px(_sx, _ry)
+                    _dots.append(f'<circle class="seat" cx="{_dcx:.1f}" cy="{_dcy:.1f}" r="{_DR}"/>')
+        else:
+            _cs = abs(x1 - x0) / (nr + 1)
+            _ns = max(2, round(abs(y1 - y0) / _SP))
+            _ss = abs(y1 - y0) / (_ns + 1)
+            _xs = 1 if x1 > x0 else -1;  _ys = 1 if y1 > y0 else -1
+            for _ci in range(1, nr + 1):
+                _cxd = x0 + _ci * _cs * _xs
+                for _si in range(1, _ns + 1):
+                    _sy = y0 + _si * _ss * _ys
+                    _dcx, _dcy = px(_cxd, _sy)
+                    _dots.append(f'<circle class="seat" cx="{_dcx:.1f}" cy="{_dcy:.1f}" r="{_DR}"/>')
+        _dsv = "\n  ".join(_dots)
         sections_svg.append(
             f'<g class="sec" data-tip="{tip}" data-grp="{grp}" style="opacity:{opac}">\n'
-            f'  <polygon points="{poly}" fill="{fill}" stroke="rgba(255,255,255,0.28)" stroke-width="0.7"/>\n'
-            f'  {rl}\n  {lsvg}\n</g>'
+            f'  <polygon class="sec-fill" points="{poly}" fill="{fill}" stroke="rgba(255,255,255,0.28)" stroke-width="0.7"/>\n'
+            f'  <g class="sec-rows">{rl}</g>\n'
+            f'  {_dsv}\n  {lsvg}\n</g>'
         )
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -636,10 +655,18 @@ def _build_stadium_svg(
     #stadiumSvg {{ cursor:grab; }}
     #stadiumSvg:active {{ cursor:grabbing; }}
     .sec {{ cursor:pointer; }}
-    .sec polygon {{ transition: filter 0.12s; }}
-    .sec:hover polygon {{ filter: brightness(1.35); }}
-    .sec.selected polygon {{ stroke:#FFD700 !important; stroke-width:2.5 !important; }}
+    .sec .sec-fill {{ transition: filter 0.12s; }}
+    .sec:hover .sec-fill {{ filter: brightness(1.4); }}
+    .sec.selected .sec-fill {{ stroke:#FFD700 !important; stroke-width:2.5 !important; }}
     #ttbox {{ pointer-events:none; filter:drop-shadow(0 2px 5px rgba(0,0,0,0.7)); }}
+    .seat {{ display:none; fill:rgba(185,205,245,0.88); stroke:rgba(255,255,255,0.25); stroke-width:0.4; }}
+    #stadiumSvg.zoomed .seat {{ display:block; }}
+    #stadiumSvg.zoomed .sec-rows {{ display:none; }}
+    #stadiumSvg.zoomed .sec-fill {{ opacity:0.13 !important; filter:none !important; }}
+    #stadiumSvg.zoomed .sec:hover .sec-fill {{ opacity:0.25 !important; }}
+    #resetBtn rect {{ fill:rgba(20,30,55,0.92); transition:fill 0.15s; }}
+    #resetBtn:hover rect {{ fill:rgba(50,65,100,0.95); cursor:pointer; }}
+    #minimap {{ pointer-events:none; opacity:0.88; }}
   </style>
 </defs>
 
@@ -667,12 +694,34 @@ def _build_stadium_svg(
 <g id="ttbox" visibility="hidden">
   <rect id="ttrect" x="0" y="0" width="10" height="28" rx="5"
         fill="rgba(8,10,25,0.95)" stroke="#4B5563" stroke-width="1"/>
-  <text id="tttext" x="0" y="0" fill="#E5E7EB" font-size="11" font-family="Arial"/>
+  <text id="tttext" x="0" y="0" fill="#E5E7EB" font-size="12" font-family="Arial"/>
 </g>
 
-<!-- Reset zoom hint -->
-<text x="{W-8}" y="{H-8}" text-anchor="end" fill="#4B5563" font-size="9" font-family="Arial"
-      pointer-events="none">Scroll=zoom · Drag=pan · Dbl-click=reset</text>
+<!-- Reset View button (fixed, top-left) -->
+<g id="resetBtn">
+  <rect x="12" y="12" width="92" height="26" rx="5" stroke="#4B5563" stroke-width="1"/>
+  <text x="58" y="27" text-anchor="middle" fill="#9CA3AF" font-size="11"
+        font-family="Arial" pointer-events="none">&#8635; Reset View</text>
+</g>
+
+<!-- Minimap (fixed, bottom-right) -->
+<g id="minimap" transform="translate({W-172},{H-150})">
+  <rect x="0" y="0" width="160" height="138" rx="5"
+        fill="rgba(8,10,25,0.88)" stroke="#374151" stroke-width="1"/>
+  <rect x="{bx0*160/W:.1f}" y="{by0*138/H:.1f}"
+        width="{(bx1-bx0)*160/W:.1f}" height="{(by1-by0)*138/H:.1f}"
+        rx="3" fill="#181b2e" stroke="#2b2f4a" stroke-width="0.8"/>
+  <rect x="{psx*160/W:.1f}" y="{psy*138/H:.1f}"
+        width="{pw*160/W:.1f}" height="{ph*138/H:.1f}" fill="#2e7d32"/>
+  <text x="80" y="133" text-anchor="middle" fill="#4B5563"
+        font-size="8" font-family="Arial">OVERVIEW</text>
+  <rect id="mmViewport" x="0" y="0" width="160" height="138"
+        fill="rgba(96,165,250,0.08)" stroke="#60A5FA" stroke-width="1.5" rx="2"/>
+</g>
+
+<!-- Zoom hint -->
+<text x="{W-8}" y="{H-5}" text-anchor="end" fill="#374151" font-size="9"
+      font-family="Arial" pointer-events="none">scroll=zoom · drag=pan</text>
 
 <script>
 (function(){{
@@ -681,12 +730,32 @@ def _build_stadium_svg(
   var ttb = document.getElementById('ttbox');
   var ttr = document.getElementById('ttrect');
   var ttt = document.getElementById('tttext');
+  var mmvp = document.getElementById('mmViewport');
+  var W = {W}, H = {H}, MMS = 160/W, MMH = 138/H;
 
   var zoom=1, panX=0, panY=0, drag=false, lx=0, ly=0;
 
+  function updateMinimap(){{
+    if(!mmvp) return;
+    var vx = Math.max(0, (-panX/zoom)*MMS);
+    var vy = Math.max(0, (-panY/zoom)*MMH);
+    var vw = Math.min(160-vx, (W/zoom)*MMS);
+    var vh = Math.min(138-vy, (H/zoom)*MMH);
+    mmvp.setAttribute('x', vx.toFixed(1));
+    mmvp.setAttribute('y', vy.toFixed(1));
+    mmvp.setAttribute('width', Math.max(3,vw).toFixed(1));
+    mmvp.setAttribute('height', Math.max(3,vh).toFixed(1));
+  }}
+
   function setT(){{
     mg.setAttribute('transform','translate('+panX+','+panY+') scale('+zoom+')');
+    if(zoom > 3.2){{ svg.classList.add('zoomed'); }} else {{ svg.classList.remove('zoomed'); }}
+    updateMinimap();
   }}
+
+  // Reset button
+  var rb = document.getElementById('resetBtn');
+  if(rb) rb.addEventListener('click', function(){{ zoom=1;panX=0;panY=0;setT(); }});
 
   svg.addEventListener('wheel', function(e){{
     e.preventDefault();
@@ -696,7 +765,7 @@ def _build_stadium_svg(
     var mx   = (e.clientX - rect.left) * sc;
     var my   = (e.clientY - rect.top)  * sc;
     var d    = e.deltaY > 0 ? 0.85 : 1.18;
-    var nz   = Math.max(0.5, Math.min(10, zoom * d));
+    var nz   = Math.max(0.5, Math.min(12, zoom * d));
     panX = mx - (mx - panX) * nz / zoom;
     panY = my - (my - panY) * nz / zoom;
     zoom = nz; setT();
@@ -721,17 +790,21 @@ def _build_stadium_svg(
     s.addEventListener('mouseenter',function(){{
       ttt.textContent=s.getAttribute('data-tip');
       ttb.setAttribute('visibility','visible');
-      var bb=ttt.getBBox(),p=8;
+      var bb=ttt.getBBox(),p=7;
       ttr.setAttribute('x',bb.x-p); ttr.setAttribute('y',bb.y-p);
       ttr.setAttribute('width',bb.width+p*2); ttr.setAttribute('height',bb.height+p*2);
     }});
     s.addEventListener('mousemove',function(e){{
       var rect=svg.getBoundingClientRect();
       var sc=svg.viewBox.baseVal.width/rect.width;
-      var tx=(e.clientX-rect.left)*sc+14;
-      var ty=(e.clientY-rect.top )*sc-10;
-      ttt.setAttribute('x',tx+8); ttt.setAttribute('y',ty+16);
-      var bb=ttt.getBBox(),p=8;
+      var tx=(e.clientX-rect.left)*sc;
+      var ty=(e.clientY-rect.top)*sc;
+      // Keep tooltip inside SVG bounds
+      var ttW=ttr.getAttribute('width')||200;
+      tx = Math.min(tx+14, W-Number(ttW)-4);
+      ty = Math.max(ty-28, 4);
+      ttt.setAttribute('x',tx+7); ttt.setAttribute('y',ty+16);
+      var bb=ttt.getBBox(),p=7;
       ttr.setAttribute('x',bb.x-p); ttr.setAttribute('y',bb.y-p);
       ttr.setAttribute('width',bb.width+p*2); ttr.setAttribute('height',bb.height+p*2);
     }});
@@ -760,6 +833,8 @@ def _build_stadium_svg(
       if(el) el.classList.add('selected');
     }});
   }}
+
+  updateMinimap();
 }})();
 </script>
 </svg>"""
@@ -796,30 +871,27 @@ def render_seat_map():
     # ── Selected sections from URL query param (toggled by JS on map click) ──
     selected_sections = [s for s in st.query_params.get("secs", "").split(",") if s]
 
-    # ── View mode (full-width, horizontal) ───────────────────────────────────
+    # ── Scenario (above view mode) ────────────────────────────────────────────
+    scenario = st.radio(
+        "Pricing Scenario", ["conservative", "balanced", "aggressive"], index=1,
+        horizontal=True,
+        format_func=lambda s: {"conservative": "🔵 Conservative",
+                               "balanced":     "⭐ Balanced",
+                               "aggressive":   "🔴 Aggressive"}[s],
+    )
+
+    # ── View mode ─────────────────────────────────────────────────────────────
     view_mode = st.radio(
         "View Mode", ["Single Game", "Season Ticket"],
         horizontal=True,
         help="Single Game: price map for one match.  Season Ticket: average across the full season.",
     )
 
-    # ── Controls row ─────────────────────────────────────────────────────────
-    ctrl2, ctrl3 = st.columns([3, 2])
-
     if view_mode == "Season Ticket":
-        with ctrl2:
-            sel_year = st.selectbox("Season Year", [2025, 2026, 2027], index=1)
+        sel_year = st.selectbox("Season Year", [2025, 2026, 2027], index=1)
         selected_game_id    = None
         selected_game_label = f"{sel_year} Season (all home games)"
         selected_opponent   = None
-        with ctrl3:
-            scenario = st.radio(
-                "Scenario", ["conservative", "balanced", "aggressive"], index=1,
-                horizontal=True,
-                format_func=lambda s: {"conservative": "Conservative",
-                                       "balanced": "Balanced ★",
-                                       "aggressive": "Aggressive"}[s],
-            )
 
         # Build season-aggregated recs across all games for the year
         _df = load_features()
@@ -832,12 +904,12 @@ def render_seat_map():
             _agg = (
                 _sdf.groupby("section")
                 .agg(
-                    face_price        =("face_price",          "mean"),
-                    capacity          =("capacity",            "first"),
-                    sold_price_avg    =("sold_price_avg",      "mean"),
-                    target_demand_index=("target_demand_index","mean"),
-                    optimal_price_inc =("optimal_price_increase","mean"),
-                    market_health     =("market_health",       lambda x: x.mode().iloc[0] if len(x) else "healthy"),
+                    face_price         =("face_price",           "mean"),
+                    capacity           =("capacity",             "first"),
+                    sold_price_avg     =("sold_price_avg",       "mean"),
+                    target_demand_index=("target_demand_index",  "mean"),
+                    optimal_price_inc  =("optimal_price_increase","mean"),
+                    market_health      =("market_health",        lambda x: x.mode().iloc[0] if len(x) else "healthy"),
                 )
                 .reset_index()
             )
@@ -845,17 +917,17 @@ def render_seat_map():
                 face = float(r["face_price"])
                 pct  = float(r["optimal_price_inc"])
                 _season_recs.append({
-                    "section":            r["section"],
-                    "face_price":         face,
-                    "capacity":           int(r["capacity"]),
-                    "sold_price_avg":     float(r["sold_price_avg"]),
-                    "target_demand_index":float(r["target_demand_index"]),
-                    "market_health":      r["market_health"],
-                    "shap_explanation":   f"Season average across {_n_games} home games",
+                    "section":             r["section"],
+                    "face_price":          face,
+                    "capacity":            int(r["capacity"]),
+                    "sold_price_avg":      float(r["sold_price_avg"]),
+                    "target_demand_index": float(r["target_demand_index"]),
+                    "market_health":       r["market_health"],
+                    "shap_explanation":    f"Season average across {_n_games} home games",
                     "scenarios": {
-                        "conservative": {"price": face * (1 + pct * 0.5 / 100), "price_change_pct": pct * 0.5, "expected_sell_through": float(r["target_demand_index"])},
-                        "balanced":     {"price": face * (1 + pct / 100),        "price_change_pct": pct,       "expected_sell_through": float(r["target_demand_index"])},
-                        "aggressive":   {"price": face * (1 + pct * 1.5 / 100),  "price_change_pct": pct * 1.5, "expected_sell_through": float(r["target_demand_index"]) * 0.92},
+                        "conservative": {"price": face*(1+pct*0.5/100), "price_change_pct": pct*0.5,  "expected_sell_through": float(r["target_demand_index"])},
+                        "balanced":     {"price": face*(1+pct/100),     "price_change_pct": pct,       "expected_sell_through": float(r["target_demand_index"])},
+                        "aggressive":   {"price": face*(1+pct*1.5/100), "price_change_pct": pct*1.5,  "expected_sell_through": float(r["target_demand_index"])*0.92},
                     },
                 })
     else:
@@ -880,88 +952,102 @@ def render_seat_map():
         min_dt = home_games["date_dt"].min()
         max_dt = home_games["date_dt"].max()
 
-        with ctrl2:
-            with st.expander("🔍 Filter Games", expanded=False):
-                fc1, fc2, fc3 = st.columns(3)
-                with fc1:
-                    sel_opps = st.multiselect("Opponent", all_opps, default=[])
-                with fc2:
-                    sel_confs = st.multiselect("Conference", all_confs, default=[])
-                with fc3:
-                    sel_comps = st.multiselect("Competition", all_comps, default=[])
-                use_range = st.checkbox("Filter by date range", value=False)
-                if use_range and pd.notna(min_dt) and pd.notna(max_dt):
-                    date_range = st.date_input("Date range", value=(min_dt.date(), max_dt.date()))
-                    exact_date = None
-                else:
-                    exact_date = st.date_input("Exact date (optional)", value=None)
-                    date_range = None
+        with st.expander("🔍 Filter Games", expanded=False):
+            # Conference first — constrains Opponent options
+            _cur_confs = st.session_state.get("game_confs", [])
+            _cur_opps  = st.session_state.get("game_opps",  [])
+            _cur_comps = st.session_state.get("game_comps", [])
 
+            gc1, gc2, gc3 = st.columns([1, 1, 1])
+            with gc1:
+                _cb1, _cb2 = st.columns([5, 1])
+                with _cb1:
+                    sel_confs = st.multiselect("Conference", all_confs, key="game_confs")
+                with _cb2:
+                    st.write("")
+                    if st.button("✕", key="clr_conf", help="Clear conference"):
+                        st.session_state["game_confs"] = []; st.rerun()
+            with gc2:
+                # Opponent options constrained by selected conferences
+                _avail_opps = sorted([o for o in all_opps
+                                       if not sel_confs or MLS_TEAMS.get(o, {}).get("conf") in sel_confs])
+                # Drop selected opponents no longer available
+                if "game_opps" in st.session_state:
+                    st.session_state["game_opps"] = [v for v in st.session_state["game_opps"] if v in _avail_opps]
+                _cb1, _cb2 = st.columns([5, 1])
+                with _cb1:
+                    sel_opps = st.multiselect("Opponent", _avail_opps, key="game_opps")
+                with _cb2:
+                    st.write("")
+                    if st.button("✕", key="clr_opp", help="Clear opponent"):
+                        st.session_state["game_opps"] = []; st.rerun()
+            with gc3:
+                _cb1, _cb2 = st.columns([5, 1])
+                with _cb1:
+                    sel_comps = st.multiselect("Competition", all_comps, key="game_comps")
+                with _cb2:
+                    st.write("")
+                    if st.button("✕", key="clr_comp", help="Clear competition"):
+                        st.session_state["game_comps"] = []; st.rerun()
+
+            use_range = st.checkbox("Filter by date range", value=False)
+            if use_range and pd.notna(min_dt) and pd.notna(max_dt):
+                date_range = st.date_input("Date range", value=(min_dt.date(), max_dt.date()))
+                exact_date = None
+            else:
+                exact_date = st.date_input("Exact date (optional)", value=None)
+                date_range = None
+
+        filtered = home_games.copy()
+        if sel_opps:
+            filtered = filtered[filtered["opponent"].isin(sel_opps)]
+        if sel_confs:
+            filtered = filtered[filtered["conference"].isin(sel_confs)]
+        if sel_comps:
+            filtered = filtered[filtered["competition"].isin(sel_comps)]
+        if use_range and date_range is not None and len(date_range) == 2:
+            lo, hi = pd.Timestamp(date_range[0]), pd.Timestamp(date_range[1])
+            filtered = filtered[(filtered["date_dt"] >= lo) & (filtered["date_dt"] <= hi)]
+        elif not use_range and exact_date is not None:
+            filtered = filtered[filtered["date_dt"].dt.date == exact_date]
+        if filtered.empty:
             filtered = home_games.copy()
-            if sel_opps:
-                filtered = filtered[filtered["opponent"].isin(sel_opps)]
-            if sel_confs:
-                filtered = filtered[filtered["conference"].isin(sel_confs)]
-            if sel_comps:
-                filtered = filtered[filtered["competition"].isin(sel_comps)]
-            if use_range and date_range is not None and len(date_range) == 2:
-                lo, hi = pd.Timestamp(date_range[0]), pd.Timestamp(date_range[1])
-                filtered = filtered[(filtered["date_dt"] >= lo) & (filtered["date_dt"] <= hi)]
-            elif not use_range and exact_date is not None:
-                filtered = filtered[filtered["date_dt"].dt.date == exact_date]
-            if filtered.empty:
-                filtered = home_games.copy()
 
-            def _game_label(row):
-                comp_short = {
-                    "MLS Regular Season": "MLS",
-                    "MLS Regular Season (Decision Day)": "MLS ★",
-                    "Baja California Cup": "Cup",
-                    "Preseason": "Pre",
-                }.get(row["competition"], row["competition"][:3])
-                return f"{row['date_str']}  |  {row['opponent']}  [{comp_short}]"
+        def _game_label(row):
+            comp_short = {
+                "MLS Regular Season":               "MLS",
+                "MLS Regular Season (Decision Day)":"MLS ★",
+                "Baja California Cup":               "Cup",
+                "Preseason":                         "Pre",
+            }.get(row["competition"], row["competition"][:3])
+            return f"{row['date_str']}  |  {row['opponent']}  [{comp_short}]"
 
-            filtered = filtered.sort_values("date_dt")
-            game_options = {_game_label(row): row["game_id"] for _, row in filtered.iterrows()}
-            selected_game_label = st.selectbox("Select Home Game", list(game_options.keys()))
-            selected_game_id = game_options.get(selected_game_label)
+        filtered = filtered.sort_values("date_dt")
+        game_options = {_game_label(row): row["game_id"] for _, row in filtered.iterrows()}
+        selected_game_label = st.selectbox("Select Home Game", list(game_options.keys()))
+        selected_game_id = game_options.get(selected_game_label)
 
         selected_row = filtered[filtered["game_id"] == selected_game_id]
         selected_opponent = selected_row.iloc[0]["opponent"] if not selected_row.empty else None
 
-        # Show selected game badge + opponent logo
         if selected_opponent:
-            opp_info  = MLS_TEAMS.get(selected_opponent, {})
-            opp_conf  = opp_info.get("conf", "")
-            opp_comp  = selected_row.iloc[0]["competition"] if not selected_row.empty else ""
-            with ctrl2:
-                st.markdown(
-                    f'<div style="display:flex;align-items:center;gap:10px;margin-top:4px">'
-                    f'{_team_badge_svg(selected_opponent, size=40)}'
-                    f'<div style="font-size:12px;color:#9CA3AF;line-height:1.4">'
-                    f'<b style="color:#E5E7EB;font-size:14px">{selected_opponent}</b><br>'
-                    f'{opp_conf} · {opp_comp}</div></div>',
-                    unsafe_allow_html=True,
-                )
-
-        with ctrl3:
-            scenario = st.radio(
-                "Scenario", ["conservative", "balanced", "aggressive"], index=1,
-                horizontal=True,
-                format_func=lambda s: {"conservative": "Conservative",
-                                       "balanced": "Balanced ★",
-                                       "aggressive": "Aggressive"}[s],
+            opp_info = MLS_TEAMS.get(selected_opponent, {})
+            opp_conf = opp_info.get("conf", "")
+            opp_comp = selected_row.iloc[0]["competition"] if not selected_row.empty else ""
+            st.markdown(
+                f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
+                f'{_team_badge_svg(selected_opponent, size=36)}'
+                f'<span style="font-size:14px;color:#E5E7EB;font-weight:600">{selected_opponent}</span>'
+                f'<span style="font-size:12px;color:#9CA3AF">{opp_conf} · {opp_comp}</span></div>',
+                unsafe_allow_html=True,
             )
 
-    # ── Section filter (cross-filtering: each dropdown constrained by other two) ──
+    # ── Section filter (cross-filtering) ─────────────────────────────────────
     _LEVEL_ORDER = {"Field Level": 0, "100": 1, "200": 2, "300": 3, "Suites": 4}
-
-    # Read current selections from session state (persist across reruns)
     _cur_types  = st.session_state.get("flt_types",  [])
     _cur_levels = st.session_state.get("flt_levels", [])
     _cur_views  = st.session_state.get("flt_views",  [])
 
-    # Available options for each filter = values that exist in sections matching the OTHER two filters
     _avail_types  = sorted({m["seat_type"]  for m in SECTION_METADATA.values()
                              if (not _cur_levels or m["level"]       in _cur_levels)
                              and (not _cur_views  or m["view_angle"] in _cur_views)})
@@ -973,7 +1059,6 @@ def render_seat_map():
                              if (not _cur_types  or m["seat_type"]   in _cur_types)
                              and (not _cur_levels or m["level"]      in _cur_levels)})
 
-    # Drop selected values that are no longer in the available set
     for _key, _avail in [("flt_types", _avail_types), ("flt_levels", _avail_levels), ("flt_views", _avail_views)]:
         if _key in st.session_state:
             st.session_state[_key] = [v for v in st.session_state[_key] if v in _avail]
@@ -981,11 +1066,26 @@ def render_seat_map():
     with st.expander("🪑 Filter Sections", expanded=False):
         sf1, sf2, sf3 = st.columns(3)
         with sf1:
-            sel_types  = st.multiselect("Seat Type",  _avail_types,  key="flt_types")
+            _a, _b = st.columns([5, 1])
+            with _a: sel_types  = st.multiselect("Seat Type",   _avail_types,  key="flt_types")
+            with _b:
+                st.write("")
+                if st.button("✕", key="clr_types", help="Clear"):
+                    st.session_state["flt_types"] = []; st.rerun()
         with sf2:
-            sel_levels = st.multiselect("Level",       _avail_levels, key="flt_levels")
+            _a, _b = st.columns([5, 1])
+            with _a: sel_levels = st.multiselect("Level",        _avail_levels, key="flt_levels")
+            with _b:
+                st.write("")
+                if st.button("✕", key="clr_levels", help="Clear"):
+                    st.session_state["flt_levels"] = []; st.rerun()
         with sf3:
-            sel_views  = st.multiselect("View Angle",  _avail_views,  key="flt_views")
+            _a, _b = st.columns([5, 1])
+            with _a: sel_views  = st.multiselect("View Angle",   _avail_views,  key="flt_views")
+            with _b:
+                st.write("")
+                if st.button("✕", key="clr_views", help="Clear"):
+                    st.session_state["flt_views"] = []; st.rerun()
 
     if any([sel_types, sel_levels, sel_views]):
         highlighted_groups: set | None = set()
@@ -1059,26 +1159,101 @@ def render_seat_map():
         highlighted_groups=highlighted_groups,
     )
 
-    # ── Legend + map (full-width below table) ─────────────────────────────────
+    # ── Legend ────────────────────────────────────────────────────────────────
     legend_html = """
-<div style="display:flex;align-items:center;gap:12px;margin:10px 0 6px;flex-wrap:wrap">
-  <span style="font-size:11px;color:#9CA3AF;white-space:nowrap">Raise price</span>
-  <div style="height:12px;width:180px;border-radius:4px;flex-shrink:0;
+<div style="display:flex;align-items:center;gap:10px;margin:8px 0 6px;flex-wrap:wrap">
+  <span style="font-size:11px;color:#9CA3AF">Raise price</span>
+  <div style="height:10px;width:140px;border-radius:3px;flex-shrink:0;
     background:linear-gradient(to right,#1E3A8A,#60A5FA,#E8EDF5,#FCA5A5,#DC2626);
     border:1px solid rgba(255,255,255,0.1)"></div>
-  <span style="font-size:11px;color:#9CA3AF;white-space:nowrap">Lower price</span>
-  <span style="font-size:11px;color:#6B7280;margin-left:12px;white-space:nowrap">
-    Opacity = confidence &nbsp;·&nbsp; Click sections to select · click again to deselect
+  <span style="font-size:11px;color:#9CA3AF">Lower price</span>
+  <span style="font-size:11px;color:#4B5563;margin-left:8px">
+    Click section to select &nbsp;·&nbsp; Scroll to zoom &nbsp;·&nbsp; Drag to pan &nbsp;·&nbsp; Zoom in to see seat dots
   </span>
 </div>"""
     st.markdown(legend_html, unsafe_allow_html=True)
 
-    svg_html = _build_stadium_svg(
-        section_data, scenario, selected_game_label,
-        highlighted_groups=highlighted_groups,
-        selected_groups=selected_sections,
-    )
-    st.components.v1.html(svg_html, height=700, scrolling=False)
+    # ── Map + Info panel (side by side when section selected) ─────────────────
+    _has_selection = bool(selected_sections)
+    if _has_selection:
+        _map_col, _info_col = st.columns([3, 1])
+    else:
+        _map_col = st.container()
+        _info_col = None
+
+    with _map_col:
+        svg_html = _build_stadium_svg(
+            section_data, scenario, selected_game_label,
+            highlighted_groups=highlighted_groups,
+            selected_groups=selected_sections,
+        )
+        st.components.v1.html(svg_html, height=870, scrolling=False)
+
+    # ── Info panel: selected section details ──────────────────────────────────
+    if _has_selection and _info_col is not None:
+        with _info_col:
+            for grp in selected_sections:
+                d    = section_data.get(grp, {})
+                meta = SECTION_METADATA.get(grp, {})
+                if not d:
+                    continue
+                pchg     = d.get("price_change_pct", 0)
+                face     = d.get("face_price", 0)
+                scen_p   = d.get("scenario_price", face)
+                cap      = d.get("capacity", 0)
+                sth      = d.get("sth_sold", 0)
+                sg       = d.get("sg_sold", 0)
+                avail    = d.get("available", 0)
+                t_rev    = d.get("ticket_rev", 0)
+                p_rev    = d.get("potential_rev", 0)
+                avg_p    = d.get("avg_price", face)
+                health   = d.get("market_health", "healthy")
+                sign     = "+" if pchg > 0 else ""
+                if pchg > 15:   rec_txt, rec_col = "Raise price",       "#60A5FA"
+                elif pchg > 5:  rec_txt, rec_col = "Slight increase",   "#93C5FD"
+                elif pchg < -15:rec_txt, rec_col = "Lower price",       "#F87171"
+                elif pchg < -5: rec_txt, rec_col = "Slight decrease",   "#FCA5A5"
+                else:           rec_txt, rec_col = "Hold price",        "#9CA3AF"
+                health_icon = {"hot": "🔴", "warm": "🟠", "healthy": "🟢", "cold": "🔵"}.get(health, "⚪")
+                st.markdown(
+                    f"""<div style="background:#111827;border:1px solid #1f2937;border-radius:10px;
+                        padding:14px;margin-bottom:10px;font-family:Arial">
+                      <div style="font-size:15px;font-weight:700;color:#E5E7EB;margin-bottom:2px">
+                        Sections {meta.get('sections', grp)}</div>
+                      <div style="font-size:11px;color:#6B7280;margin-bottom:10px">
+                        {meta.get('level','')} · {meta.get('seat_type','')} · {meta.get('view_angle','')}</div>
+                      <div style="font-size:22px;font-weight:700;color:{rec_col};margin-bottom:2px">
+                        {sign}{pchg:.1f}%</div>
+                      <div style="font-size:12px;color:{rec_col};margin-bottom:10px">{rec_txt}</div>
+                      <div style="font-size:11px;color:#6B7280;margin-bottom:4px">
+                        Current face price</div>
+                      <div style="font-size:14px;color:#D1D5DB;margin-bottom:8px">${face:,.0f}</div>
+                      <div style="font-size:11px;color:#6B7280;margin-bottom:4px">
+                        Recommended ({scenario.title()})</div>
+                      <div style="font-size:14px;color:{rec_col};font-weight:600;margin-bottom:10px">
+                        ${scen_p:,.0f}</div>
+                      <hr style="border:none;border-top:1px solid #1f2937;margin:8px 0"/>
+                      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
+                        <div style="color:#6B7280">Capacity</div>
+                        <div style="color:#D1D5DB;text-align:right">{cap:,}</div>
+                        <div style="color:#6B7280">ST Sold</div>
+                        <div style="color:#D1D5DB;text-align:right">{sth:,}</div>
+                        <div style="color:#6B7280">SG Sold</div>
+                        <div style="color:#D1D5DB;text-align:right">{sg:,}</div>
+                        <div style="color:#6B7280">Available</div>
+                        <div style="color:{"#10B981" if avail>0 else "#6B7280"};text-align:right;font-weight:600">{avail:,}</div>
+                        <div style="color:#6B7280">Avg Price</div>
+                        <div style="color:#D1D5DB;text-align:right">${avg_p:,.0f}</div>
+                        <div style="color:#6B7280">Ticket Rev</div>
+                        <div style="color:#D1D5DB;text-align:right">${t_rev:,.0f}</div>
+                        <div style="color:#6B7280">Potential Rev</div>
+                        <div style="color:#10B981;text-align:right;font-weight:600">${p_rev:,.0f}</div>
+                        <div style="color:#6B7280">Market</div>
+                        <div style="color:#D1D5DB;text-align:right">{health_icon} {health.title()}</div>
+                      </div>
+                    </div>""",
+                    unsafe_allow_html=True,
+                )
 
 
 def _render_section_table(
