@@ -815,6 +815,44 @@ def render_seat_map():
                                        "balanced": "Balanced ★",
                                        "aggressive": "Aggressive"}[s],
             )
+
+        # Build season-aggregated recs across all games for the year
+        _df = load_features()
+        _season_recs = []
+        if not _df.empty:
+            _sdf = _df[_df["season"] == sel_year] if "season" in _df.columns else _df
+            if _sdf.empty:
+                _sdf = _df
+            _n_games = _sdf["game_id"].nunique()
+            _agg = (
+                _sdf.groupby("section")
+                .agg(
+                    face_price        =("face_price",          "mean"),
+                    capacity          =("capacity",            "first"),
+                    sold_price_avg    =("sold_price_avg",      "mean"),
+                    target_demand_index=("target_demand_index","mean"),
+                    optimal_price_inc =("optimal_price_increase","mean"),
+                    market_health     =("market_health",       lambda x: x.mode().iloc[0] if len(x) else "healthy"),
+                )
+                .reset_index()
+            )
+            for _, r in _agg.iterrows():
+                face = float(r["face_price"])
+                pct  = float(r["optimal_price_inc"])
+                _season_recs.append({
+                    "section":            r["section"],
+                    "face_price":         face,
+                    "capacity":           int(r["capacity"]),
+                    "sold_price_avg":     float(r["sold_price_avg"]),
+                    "target_demand_index":float(r["target_demand_index"]),
+                    "market_health":      r["market_health"],
+                    "shap_explanation":   f"Season average across {_n_games} home games",
+                    "scenarios": {
+                        "conservative": {"price": face * (1 + pct * 0.5 / 100), "price_change_pct": pct * 0.5, "expected_sell_through": float(r["target_demand_index"])},
+                        "balanced":     {"price": face * (1 + pct / 100),        "price_change_pct": pct,       "expected_sell_through": float(r["target_demand_index"])},
+                        "aggressive":   {"price": face * (1 + pct * 1.5 / 100),  "price_change_pct": pct * 1.5, "expected_sell_through": float(r["target_demand_index"]) * 0.92},
+                    },
+                })
     else:
         # ── Single Game mode ──────────────────────────────────────────────────
         games_df = get_games_data(2026)
@@ -937,11 +975,14 @@ def render_seat_map():
         highlighted_groups = None
 
     # ── Load recommendations ──────────────────────────────────────────────────
-    recs = api_post(f"/recommend/{selected_game_id}") if selected_game_id else None
-    if not recs:
-        df_feat = load_features()
-        if not df_feat.empty and selected_game_id:
-            recs = df_feat[df_feat["game_id"] == selected_game_id].to_dict("records")
+    if view_mode == "Season Ticket":
+        recs = _season_recs
+    else:
+        recs = api_post(f"/recommend/{selected_game_id}") if selected_game_id else None
+        if not recs:
+            df_feat = load_features()
+            if not df_feat.empty and selected_game_id:
+                recs = df_feat[df_feat["game_id"] == selected_game_id].to_dict("records")
 
     if not recs:
         st.info("Select a game to view section pricing recommendations.")
