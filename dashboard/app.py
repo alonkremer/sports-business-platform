@@ -231,6 +231,28 @@ SECTION_METADATA = {
 }
 
 
+def _estimate_sth(grp: str, capacity: int) -> int:
+    """Estimate season ticket holders for a section group based on tier."""
+    meta = SECTION_METADATA.get(grp, {})
+    level     = meta.get("level", "100")
+    seat_type = meta.get("seat_type", "Reserved")
+    if seat_type == "General Admission":
+        rate = 0.25
+    elif level == "Field Level":
+        rate = 0.72
+    elif level == "100":
+        rate = 0.58
+    elif level == "200":
+        rate = 0.48
+    elif level == "300":
+        rate = 0.42
+    elif level == "Suites":
+        rate = 0.82
+    else:
+        rate = 0.50
+    return int(capacity * rate)
+
+
 @st.cache_data(ttl=60)
 def get_gap_data(season: int = 2026) -> dict:
     data = api_get("/gap", {"season": season})
@@ -393,7 +415,7 @@ def render_season_overview(games_df: pd.DataFrame, gap_data: dict, alerts: list)
 def _build_stadium_svg(
     section_data: dict, scenario: str, game_label: str,
     highlighted_groups: set | None = None,
-    selected_group: str | None = None,
+    selected_groups: list | None = None,
 ) -> str:
     """Generate a professional SVG seat map for Snapdragon Stadium with zoom/pan."""
     import math
@@ -467,19 +489,19 @@ def _build_stadium_svg(
 
     # ── Row lines ──────────────────────────────────────────────────────────
     def rlines_h(x0, x1, y0, y1, n=18):
-        c = "rgba(255,255,255,0.11)"; out = []
+        c = "rgba(255,255,255,0.28)"; out = []
         for r in range(1, n):
             t  = r / n; dy = y0 + t * (y1 - y0)
             ax, ay = px(x0, dy); bx, by = px(x1, dy)
-            out.append(f'<line x1="{ax:.1f}" y1="{ay:.1f}" x2="{bx:.1f}" y2="{by:.1f}" stroke="{c}" stroke-width="0.8"/>')
+            out.append(f'<line x1="{ax:.1f}" y1="{ay:.1f}" x2="{bx:.1f}" y2="{by:.1f}" stroke="{c}" stroke-width="1.0"/>')
         return "\n  ".join(out)
 
     def rlines_v(x0, x1, y0, y1, n=14):
-        c = "rgba(255,255,255,0.11)"; out = []
+        c = "rgba(255,255,255,0.28)"; out = []
         for r in range(1, n):
             t  = r / n; dx = x0 + t * (x1 - x0)
             ax, ay = px(dx, y0); bx, by = px(dx, y1)
-            out.append(f'<line x1="{ax:.1f}" y1="{ay:.1f}" x2="{bx:.1f}" y2="{by:.1f}" stroke="{c}" stroke-width="0.8"/>')
+            out.append(f'<line x1="{ax:.1f}" y1="{ay:.1f}" x2="{bx:.1f}" y2="{by:.1f}" stroke="{c}" stroke-width="1.0"/>')
         return "\n  ".join(out)
 
     # ── Section builder ────────────────────────────────────────────────────
@@ -603,22 +625,6 @@ def _build_stadium_svg(
         pr(PX0, -0.110, PX0+0.110, 0.110), pr(PX1-0.110, -0.110, PX1, 0.110),
     ]
 
-    # ── Area labels ─────────────────────────────────────────────────────────
-    def tlbl(text, dx, dy, size=10, color="#9CA3AF", weight="normal"):
-        lx, ly = px(dx, dy)
-        return (f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle" '
-                f'dominant-baseline="middle" fill="{color}" font-size="{size}" '
-                f'font-family="Arial" font-weight="{weight}" pointer-events="none">{text}</text>')
-
-    area_labels = [
-        tlbl("NORTH  ·  Field Club & Concourse",  0,     1.70, 10),
-        tlbl("SOUTH SIDELINE",                     0,    -1.86, 10),
-        tlbl("W",  -2.01, 0, 10), tlbl("E", 1.63, 0, 10),
-        tlbl("Toyota Terrace",       0,     1.34, 8, "#D1D5DB", "italic"),
-        tlbl("Sandbox GA",           1.29,  0,    7, "#D1D5DB", "italic"),
-        tlbl("Founders Club",       -2.00,  0,    7, "#D1D5DB", "italic"),
-    ]
-
     # ── Bowl background ────────────────────────────────────────────────────
     bx0, by0 = px(-2.05, 1.68); bx1, by1 = px(2.05, -1.88)
 
@@ -655,11 +661,7 @@ def _build_stadium_svg(
 <!-- Pitch markings -->
 {''.join(pitch_parts)}
 
-
 </g>
-
-<!-- Area labels (fixed position, zoom-invariant) -->
-{''.join(area_labels)}
 
 <!-- Tooltip (fixed, outside transform group) -->
 <g id="ttbox" visibility="hidden">
@@ -680,7 +682,7 @@ def _build_stadium_svg(
   var ttr = document.getElementById('ttrect');
   var ttt = document.getElementById('tttext');
 
-  var zoom=1, panX=0, panY=0, drag=false, lx=0, ly=0, sel=null;
+  var zoom=1, panX=0, panY=0, drag=false, lx=0, ly=0;
 
   function setT(){{
     mg.setAttribute('transform','translate('+panX+','+panY+') scale('+zoom+')');
@@ -736,24 +738,27 @@ def _build_stadium_svg(
     s.addEventListener('mouseleave',function(){{ ttb.setAttribute('visibility','hidden'); }});
     s.addEventListener('click',function(e){{
       e.stopPropagation();
-      if(sel) sel.classList.remove('selected');
-      s.classList.add('selected'); sel=s;
       var grp = s.getAttribute('data-grp');
-      if(grp) {{
-        try {{
-          var params = new URLSearchParams(window.parent.location.search);
-          params.set('sec', grp);
-          window.parent.location.search = params.toString();
-        }} catch(err) {{}}
-      }}
+      if(!grp) return;
+      try {{
+        var params = new URLSearchParams(window.parent.location.search);
+        var cur = (params.get('secs')||'').split(',').filter(Boolean);
+        var idx = cur.indexOf(grp);
+        if(idx>=0){{ cur.splice(idx,1); s.classList.remove('selected'); }}
+        else {{ cur.push(grp); s.classList.add('selected'); }}
+        params.set('secs', cur.join(','));
+        window.parent.location.search = params.toString();
+      }} catch(err) {{}}
     }});
   }});
 
-  // Pre-select section from URL param (persists across reloads)
-  var initSec = '{selected_group or ""}';
-  if(initSec) {{
-    var preEl = svg.querySelector('[data-grp="' + initSec + '"]');
-    if(preEl) {{ sel = preEl; preEl.classList.add('selected'); }}
+  // Pre-select sections from URL param
+  var initSecs = '{",".join(selected_groups or [])}';
+  if(initSecs) {{
+    initSecs.split(',').filter(Boolean).forEach(function(gid){{
+      var el=svg.querySelector('[data-grp="'+gid+'"]');
+      if(el) el.classList.add('selected');
+    }});
   }}
 }})();
 </script>
@@ -788,8 +793,8 @@ def _confidence(pchg_v: float) -> tuple[int, str]:
 def render_seat_map():
     st.title("Stadium Seat Map — Snapdragon Stadium")
 
-    # ── Clicked section from URL query param (set by JS on map click) ─────────
-    clicked_group = st.query_params.get("sec", None)
+    # ── Selected sections from URL query param (toggled by JS on map click) ──
+    selected_sections = [s for s in st.query_params.get("secs", "").split(",") if s]
 
     # ── View mode (full-width, horizontal) ───────────────────────────────────
     view_mode = st.radio(
@@ -1021,6 +1026,14 @@ def render_seat_map():
         sold_avg = float(rec.get("sold_price_avg", face * 1.15) or face * 1.15)
         scen_p   = float(scen.get("price", face) or face)
         pchg     = float(scen.get("price_change_pct", 0) or 0)
+        sth_sold   = _estimate_sth(grp, cap)
+        total_sold = int(cap * st_ / 100)
+        sth_sold   = min(sth_sold, total_sold)
+        sg_sold    = max(0, total_sold - sth_sold)
+        available  = max(0, cap - total_sold)
+        ticket_rev = sth_sold * face + sg_sold * sold_avg
+        potential_rev = available * scen_p
+        avg_price  = ticket_rev / total_sold if total_sold > 0 else face
         section_data[grp] = {
             "face_price":      face,
             "scenario_price":  scen_p,
@@ -1032,190 +1045,150 @@ def render_seat_map():
             "sell_through":    st_,
             "capacity":        cap,
             "sold_price_avg":  sold_avg,
+            "sth_sold":        sth_sold,
+            "sg_sold":         sg_sold,
+            "available":       available,
+            "ticket_rev":      ticket_rev,
+            "potential_rev":   potential_rev,
+            "avg_price":       avg_price,
         }
 
-    # ── Legend ────────────────────────────────────────────────────────────────
+    # ── Section table (above map) ─────────────────────────────────────────────
+    _render_section_table(
+        selected_sections, section_data,
+        highlighted_groups=highlighted_groups,
+    )
+
+    # ── Legend + map (full-width below table) ─────────────────────────────────
     legend_html = """
-<div style="display:flex;align-items:center;gap:12px;margin:6px 0 10px;flex-wrap:wrap">
+<div style="display:flex;align-items:center;gap:12px;margin:10px 0 6px;flex-wrap:wrap">
   <span style="font-size:11px;color:#9CA3AF;white-space:nowrap">Raise price</span>
-  <div style="height:14px;width:220px;border-radius:4px;flex-shrink:0;
+  <div style="height:12px;width:180px;border-radius:4px;flex-shrink:0;
     background:linear-gradient(to right,#1E3A8A,#60A5FA,#E8EDF5,#FCA5A5,#DC2626);
     border:1px solid rgba(255,255,255,0.1)"></div>
   <span style="font-size:11px;color:#9CA3AF;white-space:nowrap">Lower price</span>
-  <span style="font-size:11px;color:#6B7280;margin-left:16px;white-space:nowrap">
-    Opacity = confidence &nbsp;·&nbsp; Click a section on the map for details
+  <span style="font-size:11px;color:#6B7280;margin-left:12px;white-space:nowrap">
+    Opacity = confidence &nbsp;·&nbsp; Click sections to select · click again to deselect
   </span>
 </div>"""
     st.markdown(legend_html, unsafe_allow_html=True)
 
-    # ── Map + Detail side-by-side ─────────────────────────────────────────────
-    col_map, col_detail = st.columns([3, 2])
-
-    with col_map:
-        svg_html = _build_stadium_svg(
-            section_data, scenario, selected_game_label,
-            highlighted_groups=highlighted_groups,
-            selected_group=clicked_group,
-        )
-        st.components.v1.html(svg_html, height=660, scrolling=False)
-
-    with col_detail:
-        _render_section_detail(
-            clicked_group, section_data, scenario,
-            selected_game_label, selected_opponent,
-            highlighted_groups=highlighted_groups,
-        )
+    svg_html = _build_stadium_svg(
+        section_data, scenario, selected_game_label,
+        highlighted_groups=highlighted_groups,
+        selected_groups=selected_sections,
+    )
+    st.components.v1.html(svg_html, height=700, scrolling=False)
 
 
-def _render_section_detail(
-    selected_grp: str | None,
+def _render_section_table(
+    selected_sections: list,
     section_data: dict,
-    scenario: str,
-    game_label: str,
-    opponent: str | None,
     highlighted_groups: set | None = None,
 ) -> None:
-    """Render the section detail panel (right of map). Shows overview table
-    when no section is selected; full metrics when one is clicked."""
+    """Full-width section data table above the map.
 
-    if not selected_grp or selected_grp not in section_data:
-        # ── Initial state: overview table ─────────────────────────────────────
-        st.markdown(
-            '<div style="color:#9CA3AF;font-size:13px;margin-bottom:10px">'
-            '👆 Click a section on the map to see full detail</div>',
-            unsafe_allow_html=True,
-        )
+    Shows all sections (or filter-matched sections) when none are selected.
+    When sections are selected (via map click or table link), shows only those.
+    Section name links toggle selection via URL param 'secs'.
+    """
+    # Determine which groups to display
+    if selected_sections:
+        show_grps = [g for g in selected_sections if g in section_data]
+        hint = (f"{len(show_grps)} section{'s' if len(show_grps) != 1 else ''} selected — "
+                "click a section name to deselect, or click another on the map to add")
+    elif highlighted_groups is not None:
+        show_grps = sorted(g for g in section_data if g in highlighted_groups)
+        hint = f"{len(show_grps)} section{'s' if len(show_grps) != 1 else ''} match active filter"
+    else:
+        show_grps = sorted(section_data.keys())
+        hint = "Click a section name or on the map to select — multiple selections allowed"
 
-        rows = []
-        for grp, d in sorted(section_data.items()):
-            if highlighted_groups is not None and grp not in highlighted_groups:
-                continue
-            meta = SECTION_METADATA.get(grp, {})
-            cap  = d["capacity"]
-            face = d["face_price"]
-            st_pct = d["sell_through"]
-            face_sellout = face * cap
-            exp_rev      = face * (st_pct / 100) * cap
-            rows.append({
-                "Section":         meta.get("sections", grp),
-                "Level":           meta.get("level", ""),
-                "Capacity":        f"{cap:,}",
-                "Face (sellout)":  f"${face_sellout:,.0f}",
-                "Exp. Revenue":    f"${exp_rev:,.0f}",
-            })
+    st.caption(hint)
 
-        if rows:
-            overview_df = pd.DataFrame(rows)
-            st.dataframe(overview_df, use_container_width=True, hide_index=True, height=580)
+    if not show_grps:
+        st.caption("No sections to display.")
         return
 
-    # ── Section selected: full detail ─────────────────────────────────────────
-    d    = section_data[selected_grp]
-    meta = SECTION_METADATA.get(selected_grp, {})
+    cur_secs = list(selected_sections)
 
-    face    = d["face_price"]
-    scen_p  = d["scenario_price"]
-    pchg    = d["price_change_pct"]
-    cap     = d["capacity"]
-    st_pct  = d["sell_through"]
-    sold_avg = d["sold_price_avg"]
-    rng_lo  = scen_p * 0.96
-    rng_hi  = scen_p * 1.04
-    sec_premium = (sold_avg / face - 1) * 100 if face > 0 else 0
+    def _toggle_href(grp: str) -> str:
+        new = list(cur_secs)
+        if grp in new:
+            new.remove(grp)
+        else:
+            new.append(grp)
+        return f"?secs={','.join(new)}" if new else "?"
 
-    face_sellout = face * cap
-    exp_rev      = face * (st_pct / 100) * cap
-    rec_rev      = scen_p * (st_pct / 100) * cap
-    rev_uplift   = rec_rev - exp_rev
+    def _rec_badge(pchg: float) -> str:
+        if pchg > 15:   return '<span style="color:#60A5FA;font-weight:700">↑↑ Raise</span>'
+        if pchg > 5:    return '<span style="color:#93C5FD">↑ Slight raise</span>'
+        if pchg < -15:  return '<span style="color:#FCA5A5;font-weight:700">↓↓ Lower</span>'
+        if pchg < -5:   return '<span style="color:#FCD34D">↓ Slight lower</span>'
+        return '<span style="color:#9CA3AF">→ Hold</span>'
 
-    conf, conf_color = _confidence(pchg)
-    rec_label, rec_bg = _rec_label_and_color(pchg)
+    rows_html = []
+    for grp in show_grps:
+        d    = section_data.get(grp, {})
+        meta = SECTION_METADATA.get(grp, {})
+        is_sel = grp in selected_sections
+        row_bg = "background:rgba(96,165,250,0.08)" if is_sel else ""
 
-    # Section name header
-    section_display = meta.get("sections", selected_grp)
-    seat_type  = meta.get("seat_type", "")
-    level      = meta.get("level", "")
-    view_angle = meta.get("view_angle", "")
+        cap    = d.get("capacity", 0)
+        sth    = d.get("sth_sold", 0)
+        sg     = d.get("sg_sold", 0)
+        avail  = d.get("available", 0)
+        avg_p  = d.get("avg_price", d.get("face_price", 0))
+        t_rev  = d.get("ticket_rev", 0)
+        p_rev  = d.get("potential_rev", 0)
+        pchg   = d.get("price_change_pct", 0)
 
-    st.markdown(
-        f'<div style="background:#111827;border:1px solid #374151;border-radius:10px;padding:14px 16px">'
-        f'<div style="font-size:22px;font-weight:700;color:#F9FAFB;margin-bottom:2px">'
-        f'Section {section_display}</div>'
-        f'<div style="font-size:12px;color:#9CA3AF">'
-        f'{level} · {seat_type} · {view_angle}</div>'
-        f'</div>',
-        unsafe_allow_html=True,
+        sec_name  = meta.get("sections", grp)
+        link_col  = "#60A5FA" if is_sel else "#E5E7EB"
+        link_wt   = "700" if is_sel else "400"
+        avail_col = "#10B981" if avail > 0 else "#6B7280"
+
+        rows_html.append(
+            f'<tr style="{row_bg};border-bottom:1px solid #1f2937">'
+            f'<td style="padding:7px 12px;white-space:nowrap">'
+            f'<a href="{_toggle_href(grp)}" style="color:{link_col};font-weight:{link_wt};text-decoration:none">'
+            f'{sec_name}</a></td>'
+            f'<td style="padding:7px 10px;color:#9CA3AF">{meta.get("level","")}</td>'
+            f'<td style="padding:7px 10px;color:#9CA3AF">{meta.get("view_angle","")}</td>'
+            f'<td style="padding:7px 10px;color:#D1D5DB;text-align:right">{cap:,}</td>'
+            f'<td style="padding:7px 10px;color:#D1D5DB;text-align:right">{sth:,}</td>'
+            f'<td style="padding:7px 10px;color:#D1D5DB;text-align:right">{sg:,}</td>'
+            f'<td style="padding:7px 10px;color:{avail_col};text-align:right;font-weight:600">{avail:,}</td>'
+            f'<td style="padding:7px 10px;color:#D1D5DB;text-align:right">${avg_p:,.0f}</td>'
+            f'<td style="padding:7px 10px;color:#D1D5DB;text-align:right">${t_rev:,.0f}</td>'
+            f'<td style="padding:7px 10px;color:#10B981;text-align:right;font-weight:600">${p_rev:,.0f}</td>'
+            f'<td style="padding:7px 12px;text-align:center">{_rec_badge(pchg)}</td>'
+            f'</tr>'
+        )
+
+    th = ('background:#0f1729;color:#6B7280;font-size:11px;text-transform:uppercase;'
+          'letter-spacing:0.05em;font-weight:500;border-bottom:1px solid #374151')
+    table_html = (
+        '<div style="overflow-x:auto;background:#111827;border-radius:10px;'
+        'border:1px solid #1f2937;margin-bottom:12px">'
+        '<table style="width:100%;border-collapse:collapse;font-size:13px">'
+        '<thead><tr>'
+        f'<th style="{th};padding:9px 12px;text-align:left">Section</th>'
+        f'<th style="{th};padding:9px 10px;text-align:left">Level</th>'
+        f'<th style="{th};padding:9px 10px;text-align:left">View</th>'
+        f'<th style="{th};padding:9px 10px;text-align:right">Capacity</th>'
+        f'<th style="{th};padding:9px 10px;text-align:right">ST Sold</th>'
+        f'<th style="{th};padding:9px 10px;text-align:right">SG Sold</th>'
+        f'<th style="{th};padding:9px 10px;text-align:right">Available</th>'
+        f'<th style="{th};padding:9px 10px;text-align:right">Avg Price</th>'
+        f'<th style="{th};padding:9px 10px;text-align:right">Ticket Revenue</th>'
+        f'<th style="{th};padding:9px 10px;text-align:right">Potential Rev</th>'
+        f'<th style="{th};padding:9px 12px;text-align:center">Recommendation</th>'
+        '</tr></thead>'
+        f'<tbody>{"".join(rows_html)}</tbody>'
+        '</table></div>'
     )
-
-    st.markdown("")
-
-    # Recommendation badge
-    arrow = "↑" if pchg > 5 else ("↓" if pchg < -5 else "→")
-    st.markdown(
-        f'<div style="background:{rec_bg};color:white;padding:9px 14px;'
-        f'border-radius:7px;font-weight:600;font-size:14px;margin-bottom:8px">'
-        f'{arrow} {rec_label}</div>',
-        unsafe_allow_html=True,
-    )
-
-    # Pricing metrics grid
-    m1, m2 = st.columns(2)
-    m1.metric("Face Price (current)",    f"${face:.0f}")
-    m2.metric("Recommended Price",        f"${rng_lo:.0f}–${rng_hi:.0f}",
-              delta=f"{pchg:+.1f}%")
-
-    m3, m4 = st.columns(2)
-    m3.metric("Secondary Market Avg",    f"${sold_avg:.0f}",
-              delta=f"+{sec_premium:.0f}% above face",
-              help="Average sold price on secondary market (StubHub, SeatGeek, etc.)")
-    m4.metric("Sell-Through Forecast",   f"{st_pct:.0f}%",
-              help="Expected % of seats sold at current pricing")
-
-    st.markdown("---")
-
-    # Revenue metrics
-    r1, r2, r3 = st.columns(3)
-    r1.metric("Face Sellout Value",      f"${face_sellout:,.0f}",
-              help="Revenue if section sells out at face price")
-    r2.metric("Expected Revenue",         f"${exp_rev:,.0f}",
-              help="Face price × forecast sell-through × capacity")
-    r3.metric("Revenue at Rec. Price",   f"${rec_rev:,.0f}",
-              delta=f"${rev_uplift:+,.0f}",
-              help="Recommended price × forecast sell-through × capacity")
-
-    st.markdown("---")
-
-    # Confidence + STH
-    q1, q2 = st.columns(2)
-    q1.markdown(
-        f'<div style="font-size:12px;color:#9CA3AF;margin-bottom:4px">Model Confidence</div>'
-        f'<span style="font-size:20px;color:{conf_color}">{"●"*conf}{"○"*(5-conf)}</span> '
-        f'<span style="color:{conf_color};font-weight:700">{conf}/5</span>',
-        unsafe_allow_html=True,
-    )
-    sth_icon  = "✓" if d["sth_healthy"] else "⚠"
-    sth_color = "#10B981" if d["sth_healthy"] else "#F59E0B"
-    sth_label = "Healthy" if d["sth_healthy"] else "Risk — face price below resale avg"
-    q2.markdown(
-        f'<div style="font-size:12px;color:#9CA3AF;margin-bottom:4px">STH Resale Health</div>'
-        f'<span style="color:{sth_color};font-weight:700;font-size:16px">{sth_icon} {sth_label}</span>',
-        unsafe_allow_html=True,
-    )
-
-    # Market health
-    mh = d.get("market_health", "healthy")
-    mh_colors = {"hot": "#EF4444", "warm": "#F59E0B", "healthy": "#10B981", "cold": "#6B7280"}
-    mh_color = mh_colors.get(mh, "#9CA3AF")
-    st.markdown(
-        f'<div style="margin-top:10px;font-size:12px;color:#9CA3AF">Market Signal: '
-        f'<span style="color:{mh_color};font-weight:600;text-transform:capitalize">{mh}</span></div>',
-        unsafe_allow_html=True,
-    )
-
-    # AI explanation
-    if d.get("explanation"):
-        st.markdown("**AI Insight**")
-        st.info(d["explanation"])
+    st.markdown(table_html, unsafe_allow_html=True)
 
 
 # ── View 3: Price Gap Analysis ────────────────────────────────────────────────
