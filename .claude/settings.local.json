@@ -1,16 +1,31 @@
 {
   "permissions": {
     "allow": [
-      "Bash(\"C:\\\\Users\\\\User\\\\Claude Code\\\\Sports Business Project\\\\src\\\\database\\\\__init__.py\")",
-      "Bash(\"C:\\\\Users\\\\User\\\\Claude Code\\\\Sports Business Project\\\\src\\\\feature_engineering\\\\__init__.py\")",
-      "Bash(\"C:/Users/User/Claude Code/Sports Business Project/api/__init__.py\")",
-      "Bash(\"C:/Users/User/Claude Code/Sports Business Project/api/routes/__init__.py\")",
-      "Bash(\"C:/Users/User/Claude Code/Sports Business Project/agents/__init__.py\")",
-      "Bash(\"C:/Users/User/Claude Code/Sports Business Project/tests/__init__.py\")",
-      "Bash(\"C:/Users/User/Claude Code/Sports Business Project/tests/unit/__init__.py\")",
-      "Bash(\"C:/Users/User/Claude Code/Sports Business Project/tests/integration/__init__.py\")",
-      "Bash(\"C:/Users/User/Claude Code/Sports Business Project/tests/backtest/__init__.py\")",
-      "Bash(sort find:*)"
+      "Bash(*)",
+      "mcp__Claude_Preview__preview_start",
+      "Read(//c/Users/User/AppData/Local/Programs/**)",
+      "Read(//c/Users/User/miniconda3/**)",
+      "Read(//c/Users/User/anaconda3/**)",
+      "Read(//c/Users/User/AppData/Local/pyenv/pyenv-win/shims/**)",
+      "WebSearch",
+      "WebFetch(domain:www.sandiegofc.com)",
+      "WebFetch(domain:www.snapdragonstadium.com)",
+      "WebFetch(domain:www.seats.io)",
+      "WebFetch(domain:chairnerd.seatgeek.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.enterthesnapdragon.com)",
+      "WebFetch(domain:docs.streamlit.io)",
+      "WebFetch(domain:support.seats.io)",
+      "WebFetch(domain:docs.seats.io)",
+      "WebFetch(domain:aviewfrommyseat.com)",
+      "WebFetch(domain:www.rateyourseats.com)",
+      "WebFetch(domain:discuss.streamlit.io)",
+      "WebFetch(domain:3ddigitalvenue.com)",
+      "WebFetch(domain:sehmi-conscious.medium.com)",
+      "WebFetch(domain:www.tickpick.com)",
+      "WebFetch(domain:stadiumdb.com)",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
     ]
   }
 }

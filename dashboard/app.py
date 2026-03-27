@@ -132,49 +132,61 @@ def get_games_data(season: int = 2026) -> pd.DataFrame:
 
 
 # ── MLS Team Metadata ────────────────────────────────────────────────────────
+def _espn_logo(team_id: int) -> str:
+    return f"https://a.espncdn.com/i/teamlogos/soccer/500/{team_id}.png"
+
 MLS_TEAMS = {
-    "Atlanta United":       {"conf": "East", "color": "#80000A"},
-    "Austin FC":            {"conf": "West", "color": "#00B140"},
-    "Charlotte FC":         {"conf": "East", "color": "#1A85C8"},
-    "Chicago Fire":         {"conf": "East", "color": "#9A1B2F"},
-    "FC Cincinnati":        {"conf": "East", "color": "#003087"},
-    "Colorado Rapids":      {"conf": "West", "color": "#862633"},
-    "Columbus Crew":        {"conf": "East", "color": "#FEDD00"},
-    "D.C. United":          {"conf": "East", "color": "#EF3E42"},
-    "FC Dallas":            {"conf": "West", "color": "#BF0D3E"},
-    "Houston Dynamo":       {"conf": "West", "color": "#F4911E"},
-    "Sporting KC":          {"conf": "West", "color": "#002F6C"},
-    "LA Galaxy":            {"conf": "West", "color": "#00245D"},
-    "LAFC":                 {"conf": "West", "color": "#C39E6D"},
-    "Inter Miami":          {"conf": "East", "color": "#F7B5CD"},
-    "Minnesota United":     {"conf": "West", "color": "#8CD2F4"},
-    "CF Montreal":          {"conf": "East", "color": "#003DA5"},
-    "Nashville SC":         {"conf": "West", "color": "#ECE83A"},
-    "New England Revolution": {"conf": "East", "color": "#C63323"},
-    "NY Red Bulls":         {"conf": "East", "color": "#EF3E42"},
-    "NYCFC":                {"conf": "East", "color": "#6CACE4"},
-    "Orlando City":         {"conf": "East", "color": "#633492"},
-    "Philadelphia Union":   {"conf": "East", "color": "#071B2C"},
-    "Portland Timbers":     {"conf": "West", "color": "#004812"},
-    "Real Salt Lake":       {"conf": "West", "color": "#B30838"},
-    "San Jose Earthquakes": {"conf": "West", "color": "#0D4C92"},
-    "Seattle Sounders":     {"conf": "West", "color": "#5D9741"},
-    "St. Louis City SC":    {"conf": "West", "color": "#EF3340"},
-    "Toronto FC":           {"conf": "East", "color": "#E31937"},
-    "Vancouver Whitecaps":  {"conf": "West", "color": "#9DC2EA"},
-    "Club Tijuana":         {"conf": "Liga MX", "color": "#CC0000"},
-    "Chivas":               {"conf": "Liga MX", "color": "#CC0000"},
-    "Club América":         {"conf": "Liga MX", "color": "#FFDD00"},
-    "Cruz Azul":            {"conf": "Liga MX", "color": "#003DA5"},
-    "Pumas UNAM":           {"conf": "Liga MX", "color": "#003DA5"},
+    "Atlanta United":         {"conf": "East",    "color": "#80000A", "logo": _espn_logo(1626)},
+    "Austin FC":              {"conf": "West",    "color": "#00B140", "logo": _espn_logo(18092)},
+    "Charlotte FC":           {"conf": "East",    "color": "#1A85C8", "logo": _espn_logo(22139)},
+    "Chicago Fire":           {"conf": "East",    "color": "#9A1B2F", "logo": _espn_logo(433)},
+    "FC Cincinnati":          {"conf": "East",    "color": "#003087", "logo": _espn_logo(18078)},
+    "Colorado Rapids":        {"conf": "West",    "color": "#862633", "logo": _espn_logo(430)},
+    "Columbus Crew":          {"conf": "East",    "color": "#FEDD00", "logo": _espn_logo(424)},
+    "D.C. United":            {"conf": "East",    "color": "#EF3E42", "logo": _espn_logo(431)},
+    "FC Dallas":              {"conf": "West",    "color": "#BF0D3E", "logo": _espn_logo(425)},
+    "Houston Dynamo":         {"conf": "West",    "color": "#F4911E", "logo": _espn_logo(429)},
+    "Sporting KC":            {"conf": "West",    "color": "#002F6C", "logo": _espn_logo(426)},
+    "LA Galaxy":              {"conf": "West",    "color": "#00245D", "logo": _espn_logo(403)},
+    "LAFC":                   {"conf": "West",    "color": "#C39E6D", "logo": _espn_logo(16032)},
+    "Inter Miami":            {"conf": "East",    "color": "#F7B5CD", "logo": _espn_logo(22106)},
+    "Minnesota United":       {"conf": "West",    "color": "#8CD2F4", "logo": _espn_logo(18463)},
+    "CF Montreal":            {"conf": "East",    "color": "#003DA5", "logo": _espn_logo(432)},
+    "Nashville SC":           {"conf": "West",    "color": "#ECE83A", "logo": _espn_logo(18093)},
+    "New England Revolution": {"conf": "East",    "color": "#C63323", "logo": _espn_logo(423)},
+    "NY Red Bulls":           {"conf": "East",    "color": "#EF3E42", "logo": _espn_logo(427)},
+    "NYCFC":                  {"conf": "East",    "color": "#6CACE4", "logo": _espn_logo(16033)},
+    "Orlando City":           {"conf": "East",    "color": "#633492", "logo": _espn_logo(17063)},
+    "Philadelphia Union":     {"conf": "East",    "color": "#071B2C", "logo": _espn_logo(16035)},
+    "Portland Timbers":       {"conf": "West",    "color": "#004812", "logo": _espn_logo(9728)},
+    "Real Salt Lake":         {"conf": "West",    "color": "#B30838", "logo": _espn_logo(428)},
+    "San Jose Earthquakes":   {"conf": "West",    "color": "#0D4C92", "logo": _espn_logo(404)},
+    "Seattle Sounders":       {"conf": "West",    "color": "#5D9741", "logo": _espn_logo(9726)},
+    "St. Louis City SC":      {"conf": "West",    "color": "#EF3340", "logo": _espn_logo(22193)},
+    "Toronto FC":             {"conf": "East",    "color": "#E31937", "logo": _espn_logo(9730)},
+    "Vancouver Whitecaps":    {"conf": "West",    "color": "#9DC2EA", "logo": _espn_logo(9727)},
+    "Club Tijuana":           {"conf": "Liga MX", "color": "#CC0000", "logo": _espn_logo(4489)},
+    "Chivas":                 {"conf": "Liga MX", "color": "#CC0000", "logo": _espn_logo(4396)},
+    "Club América":           {"conf": "Liga MX", "color": "#FFDD00", "logo": _espn_logo(4385)},
+    "Cruz Azul":              {"conf": "Liga MX", "color": "#003DA5", "logo": _espn_logo(4397)},
+    "Pumas UNAM":             {"conf": "Liga MX", "color": "#003DA5", "logo": _espn_logo(4387)},
+    "Pachuca":                {"conf": "Liga MX", "color": "#0057A8", "logo": _espn_logo(4406)},
 }
 
 
 def _team_badge_svg(team_name: str, size: int = 20) -> str:
-    """Return a small inline SVG colored circle badge for a team."""
+    """Return team logo img if available, else a colored SVG circle badge."""
     info = MLS_TEAMS.get(team_name, {})
     color = info.get("color", "#6B7280")
     initials = "".join(w[0] for w in team_name.split()[:2]).upper()
+    logo = info.get("logo")
+    if logo:
+        # Real logo with SVG circle fallback on error
+        return (
+            f'<img src="{logo}" width="{size}" height="{size}" '
+            f'style="border-radius:4px;object-fit:contain;background:#fff;padding:1px;vertical-align:middle" '
+            f"onerror=\"this.style.display='none'\" />"
+        )
     return (
         f'<svg width="{size}" height="{size}" xmlns="http://www.w3.org/2000/svg">'
         f'<circle cx="{size//2}" cy="{size//2}" r="{size//2-1}" fill="{color}"/>'
@@ -381,6 +393,7 @@ def render_season_overview(games_df: pd.DataFrame, gap_data: dict, alerts: list)
 def _build_stadium_svg(
     section_data: dict, scenario: str, game_label: str,
     highlighted_groups: set | None = None,
+    selected_group: str | None = None,
 ) -> str:
     """Generate a professional SVG seat map for Snapdragon Stadium with zoom/pan."""
     import math
@@ -727,8 +740,23 @@ def _build_stadium_svg(
       e.stopPropagation();
       if(sel) sel.classList.remove('selected');
       s.classList.add('selected'); sel=s;
+      var grp = s.getAttribute('data-grp');
+      if(grp) {{
+        try {{
+          var params = new URLSearchParams(window.parent.location.search);
+          params.set('sec', grp);
+          window.parent.location.search = params.toString();
+        }} catch(err) {{}}
+      }}
     }});
   }});
+
+  // Pre-select section from URL param (persists across reloads)
+  var initSec = '{selected_group or ""}';
+  if(initSec) {{
+    var preEl = svg.querySelector('[data-grp="' + initSec + '"]');
+    if(preEl) {{ sel = preEl; preEl.classList.add('selected'); }}
+  }}
 }})();
 </script>
 </svg>"""
@@ -740,24 +768,47 @@ def _build_stadium_svg(
 </div>"""
 
 
+def _rec_label_and_color(pchg_v: float) -> tuple[str, str]:
+    if pchg_v > 15:    return "Increase recommended",        "#1E3A8A"
+    if pchg_v > 5:     return "Slight increase recommended", "#2563EB"
+    if pchg_v < -15:   return "Decrease recommended",        "#B91C1C"
+    if pchg_v < -5:    return "Slight decrease recommended",  "#EF4444"
+    return "No change recommended", "#374151"
+
+
+def _confidence(pchg_v: float) -> tuple[int, str]:
+    ap = abs(pchg_v)
+    if ap < 3:   c = 4
+    elif ap < 6: c = 2
+    elif ap < 10:c = 3
+    elif ap < 18:c = 4
+    else:        c = 5
+    color = "#DC2626" if c <= 2 else ("#FBBF24" if c == 3 else "#10B981")
+    return c, color
+
+
 def render_seat_map():
     st.title("Stadium Seat Map — Snapdragon Stadium")
 
-    # ── View mode (top of page) ───────────────────────────────────────────
-    view_mode = st.radio(
-        "View Mode", ["Single Game", "Season Ticket"],
-        horizontal=True,
-        help="Single Game: price map for one match.  Season Ticket: average across the full season.",
-    )
+    # ── Clicked section from URL query param (set by JS on map click) ─────────
+    clicked_group = st.query_params.get("sec", None)
 
-    col_left, col_right = st.columns([2, 1])
+    # ── Controls row ─────────────────────────────────────────────────────────
+    ctrl1, ctrl2, ctrl3 = st.columns([1, 3, 2])
 
-    with col_left:
-        if view_mode == "Season Ticket":
-            # Year selector replaces game dropdown for season-ticket context
+    with ctrl1:
+        view_mode = st.radio(
+            "View Mode", ["Single Game", "Season Ticket"],
+            help="Single Game: price map for one match.  Season Ticket: average across the full season.",
+        )
+
+    if view_mode == "Season Ticket":
+        with ctrl2:
             sel_year = st.selectbox("Season Year", [2025, 2026, 2027], index=1)
-            selected_game_id    = None
-            selected_game_label = f"{sel_year} Season (all home games)"
+        selected_game_id    = None
+        selected_game_label = f"{sel_year} Season (all home games)"
+        selected_opponent   = None
+        with ctrl3:
             scenario = st.radio(
                 "Scenario", ["conservative", "balanced", "aggressive"], index=1,
                 horizontal=True,
@@ -765,30 +816,29 @@ def render_seat_map():
                                        "balanced": "Balanced ★",
                                        "aggressive": "Aggressive"}[s],
             )
+    else:
+        # ── Single Game mode ──────────────────────────────────────────────────
+        games_df = get_games_data(2026)
+        if games_df.empty:
+            st.warning("No game data available.")
+            return
 
-        else:
-            # ── Game selector with filters (Single Game mode) ─────────────────
-            games_df = get_games_data(2026)
-            if games_df.empty:
-                st.warning("No game data available.")
-                return
+        home_games = games_df[games_df["game_id"].str.contains("H", na=False)].copy()
+        if home_games.empty:
+            home_games = games_df.copy()
 
-            # Home games only
-            home_games = games_df[games_df["game_id"].str.contains("H", na=False)].copy()
-            if home_games.empty:
-                home_games = games_df.copy()
+        home_games["competition"] = home_games.apply(_derive_competition, axis=1)
+        home_games["conference"]  = home_games["opponent"].apply(_derive_conference)
+        home_games["date_dt"]     = pd.to_datetime(home_games["date"], errors="coerce")
+        home_games["date_str"]    = home_games["date_dt"].dt.strftime("%b %d, %Y").fillna("")
 
-            home_games["competition"] = home_games.apply(_derive_competition, axis=1)
-            home_games["conference"]  = home_games["opponent"].apply(_derive_conference)
-            home_games["date_dt"]     = pd.to_datetime(home_games["date"], errors="coerce")
-            home_games["date_str"]    = home_games["date_dt"].dt.strftime("%b %d, %Y").fillna("")
+        all_opps  = sorted(home_games["opponent"].dropna().unique().tolist())
+        all_confs = sorted(home_games["conference"].dropna().unique().tolist())
+        all_comps = sorted(home_games["competition"].dropna().unique().tolist())
+        min_dt = home_games["date_dt"].min()
+        max_dt = home_games["date_dt"].max()
 
-            all_opps  = sorted(home_games["opponent"].dropna().unique().tolist())
-            all_confs = sorted(home_games["conference"].dropna().unique().tolist())
-            all_comps = sorted(home_games["competition"].dropna().unique().tolist())
-            min_dt = home_games["date_dt"].min()
-            max_dt = home_games["date_dt"].max()
-
+        with ctrl2:
             with st.expander("🔍 Filter Games", expanded=False):
                 fc1, fc2, fc3 = st.columns(3)
                 with fc1:
@@ -831,27 +881,28 @@ def render_seat_map():
 
             filtered = filtered.sort_values("date_dt")
             game_options = {_game_label(row): row["game_id"] for _, row in filtered.iterrows()}
-
-            sel_col1, sel_col2 = st.columns([3, 1])
-            with sel_col1:
-                selected_game_label = st.selectbox("Select Home Game", list(game_options.keys()))
+            selected_game_label = st.selectbox("Select Home Game", list(game_options.keys()))
             selected_game_id = game_options.get(selected_game_label)
 
-            selected_row = filtered[filtered["game_id"] == selected_game_id]
-            if not selected_row.empty:
-                opp  = selected_row.iloc[0]["opponent"]
-                comp = selected_row.iloc[0]["competition"]
-                conf = selected_row.iloc[0]["conference"]
-                with sel_col2:
-                    st.markdown(
-                        f'<div style="display:flex;align-items:center;gap:8px;padding-top:24px">'
-                        f'{_team_badge_svg(opp, size=36)}'
-                        f'<div style="font-size:11px;color:#9CA3AF;line-height:1.3">'
-                        f'<b style="color:#E5E7EB">{opp}</b><br>{conf} | {comp}</div>'
-                        f'</div>',
-                        unsafe_allow_html=True,
-                    )
+        selected_row = filtered[filtered["game_id"] == selected_game_id]
+        selected_opponent = selected_row.iloc[0]["opponent"] if not selected_row.empty else None
 
+        # Show selected game badge + opponent logo
+        if selected_opponent:
+            opp_info  = MLS_TEAMS.get(selected_opponent, {})
+            opp_conf  = opp_info.get("conf", "")
+            opp_comp  = selected_row.iloc[0]["competition"] if not selected_row.empty else ""
+            with ctrl2:
+                st.markdown(
+                    f'<div style="display:flex;align-items:center;gap:10px;margin-top:4px">'
+                    f'{_team_badge_svg(selected_opponent, size=40)}'
+                    f'<div style="font-size:12px;color:#9CA3AF;line-height:1.4">'
+                    f'<b style="color:#E5E7EB;font-size:14px">{selected_opponent}</b><br>'
+                    f'{opp_conf} · {opp_comp}</div></div>',
+                    unsafe_allow_html=True,
+                )
+
+        with ctrl3:
             scenario = st.radio(
                 "Scenario", ["conservative", "balanced", "aggressive"], index=1,
                 horizontal=True,
@@ -859,145 +910,248 @@ def render_seat_map():
                                        "balanced": "Balanced ★",
                                        "aggressive": "Aggressive"}[s],
             )
-        # end if/else Season Ticket / Single Game
 
-    with col_right:
-        # ── Section filters ──────────────────────────────────────────────────
-        all_seat_types = sorted({m["seat_type"] for m in SECTION_METADATA.values()})
-        all_levels     = sorted({m["level"]     for m in SECTION_METADATA.values()})
-        all_views      = ["Sideline", "Goal End", "Corner", "Upper", "Mixed"]
+    # ── Section filter ────────────────────────────────────────────────────────
+    all_seat_types = sorted({m["seat_type"] for m in SECTION_METADATA.values()})
+    all_levels     = sorted({m["level"]     for m in SECTION_METADATA.values()})
+    all_views      = ["Sideline", "Goal End", "Corner", "Upper", "Mixed"]
 
-        with st.expander("🪑 Filter Sections", expanded=False):
-            sel_types  = st.multiselect("Seat Type",   all_seat_types, default=[])
-            sel_levels = st.multiselect("Level",        all_levels,    default=[])
-            sel_views  = st.multiselect("View Angle",   all_views,     default=[])
+    with st.expander("🪑 Filter Sections", expanded=False):
+        sf1, sf2, sf3 = st.columns(3)
+        with sf1:
+            sel_types  = st.multiselect("Seat Type",  all_seat_types, default=[])
+        with sf2:
+            sel_levels = st.multiselect("Level",       all_levels,    default=[])
+        with sf3:
+            sel_views  = st.multiselect("View Angle",  all_views,     default=[])
 
-        # Compute which section groups pass the filter
-        if any([sel_types, sel_levels, sel_views]):
-            highlighted_groups: set | None = set()
-            for grp, meta in SECTION_METADATA.items():
-                type_ok  = (not sel_types)  or meta["seat_type"] in sel_types
-                level_ok = (not sel_levels) or meta["level"]     in sel_levels
-                view_ok  = (not sel_views)  or any(v in meta["view_angle"] for v in sel_views)
-                if type_ok and level_ok and view_ok:
-                    highlighted_groups.add(grp)
-        else:
-            highlighted_groups = None   # no filter → all visible
+    if any([sel_types, sel_levels, sel_views]):
+        highlighted_groups: set | None = set()
+        for grp, meta in SECTION_METADATA.items():
+            type_ok  = (not sel_types)  or meta["seat_type"] in sel_types
+            level_ok = (not sel_levels) or meta["level"]     in sel_levels
+            view_ok  = (not sel_views)  or any(v in meta["view_angle"] for v in sel_views)
+            if type_ok and level_ok and view_ok:
+                highlighted_groups.add(grp)
+    else:
+        highlighted_groups = None
 
     # ── Load recommendations ──────────────────────────────────────────────────
     recs = api_post(f"/recommend/{selected_game_id}") if selected_game_id else None
-
     if not recs:
-        # Fallback: use feature file data
-        df = load_features()
-        if not df.empty and selected_game_id:
-            recs = df[df["game_id"] == selected_game_id].to_dict("records")
+        df_feat = load_features()
+        if not df_feat.empty and selected_game_id:
+            recs = df_feat[df_feat["game_id"] == selected_game_id].to_dict("records")
 
     if not recs:
         st.info("Select a game to view section pricing recommendations.")
         return
 
-    recs_df = pd.DataFrame(recs)
-
-    # Get price/scenario data for each section group
-    section_data = {}
+    # ── Build section_data (one entry per section group) ──────────────────────
+    section_data: dict = {}
     for rec in recs:
-        section = rec.get("section", "")
+        grp = rec.get("section", "")
         scenarios_raw = rec.get("scenarios", {})
         scen = scenarios_raw.get(scenario, {}) if isinstance(scenarios_raw, dict) else {}
-        if isinstance(scen, dict):
-            section_data[section] = {
-                "face_price": rec.get("face_price", 60),
-                "scenario_price": scen.get("price", rec.get("face_price", 60)),
-                "price_change_pct": scen.get("price_change_pct", 0),
-                "sth_healthy": scen.get("sth_is_healthy", True),
-                "market_health": rec.get("market_health", "healthy"),
-                "explanation": rec.get("shap_explanation", ""),
-                "revenue_delta": scen.get("revenue_delta_pct", 0),
-                "sell_through": scen.get("expected_sell_through", 80),
-            }
+        if not isinstance(scen, dict):
+            continue
+        face = float(rec.get("face_price", 60) or 60)
+        cap  = int(rec.get("capacity", 2000) or 2000)
+        st_  = float(scen.get("expected_sell_through", rec.get("target_demand_index", 80)) or 80)
+        sold_avg = float(rec.get("sold_price_avg", face * 1.15) or face * 1.15)
+        scen_p   = float(scen.get("price", face) or face)
+        pchg     = float(scen.get("price_change_pct", 0) or 0)
+        section_data[grp] = {
+            "face_price":      face,
+            "scenario_price":  scen_p,
+            "price_change_pct": pchg,
+            "sth_healthy":     bool(scen.get("sth_is_healthy", True)),
+            "market_health":   rec.get("market_health", "healthy"),
+            "explanation":     rec.get("shap_explanation", ""),
+            "revenue_delta":   float(scen.get("revenue_delta_pct", 0) or 0),
+            "sell_through":    st_,
+            "capacity":        cap,
+            "sold_price_avg":  sold_avg,
+        }
 
-    # ── Legend: single gradient bar ───────────────────────────────────────────────
+    # ── Legend ────────────────────────────────────────────────────────────────
     legend_html = """
-<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+<div style="display:flex;align-items:center;gap:12px;margin:6px 0 10px;flex-wrap:wrap">
   <span style="font-size:11px;color:#9CA3AF;white-space:nowrap">Raise price</span>
   <div style="height:14px;width:220px;border-radius:4px;flex-shrink:0;
     background:linear-gradient(to right,#1E3A8A,#60A5FA,#E8EDF5,#FCA5A5,#DC2626);
     border:1px solid rgba(255,255,255,0.1)"></div>
   <span style="font-size:11px;color:#9CA3AF;white-space:nowrap">Lower price</span>
   <span style="font-size:11px;color:#6B7280;margin-left:16px;white-space:nowrap">
-    Opacity = confidence &nbsp;(vivid = high signal &nbsp;·&nbsp; faded = low signal)
+    Opacity = confidence &nbsp;·&nbsp; Click a section on the map for details
   </span>
 </div>"""
     st.markdown(legend_html, unsafe_allow_html=True)
 
-    # ── SVG seat map ──────────────────────────────────────────────────────────────
-    svg_html = _build_stadium_svg(
-        section_data, scenario, selected_game_label,
-        highlighted_groups=highlighted_groups,
-    )
-    st.components.v1.html(svg_html, height=920, scrolling=False)
+    # ── Map + Detail side-by-side ─────────────────────────────────────────────
+    col_map, col_detail = st.columns([3, 2])
 
-    # Section detail panel (click simulation via selectbox)
-    st.subheader("Section Detail")
-    section_options = list(section_data.keys())
-    selected_section = st.selectbox("Select Section", section_options)
-
-    if selected_section and selected_section in section_data:
-        d = section_data[selected_section]
-        face   = d["face_price"]
-        scen_p = d["scenario_price"]
-        pchg_v = d["price_change_pct"]
-        rng_lo = scen_p * 0.96
-        rng_hi = scen_p * 1.04
-
-        # Confidence
-        ap = abs(pchg_v)
-        if ap < 3:    conf = 4
-        elif ap < 6:  conf = 2
-        elif ap < 10: conf = 3
-        elif ap < 18: conf = 4
-        else:         conf = 5
-        conf_color = "#DC2626" if conf <= 2 else ("#FBBF24" if conf == 3 else "#10B981")
-
-        if pchg_v > 15:     rec_label = "Price increase recommended"
-        elif pchg_v > 5:    rec_label = "Slight price increase recommended"
-        elif pchg_v < -15:  rec_label = "Price decrease recommended"
-        elif pchg_v < -5:   rec_label = "Slight price decrease recommended"
-        else:               rec_label = "No change recommended"
-
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Current Price", f"${face:.0f}")
-        c2.metric("Recommended Range", f"${rng_lo:.0f}–${rng_hi:.0f}",
-                  delta=f"{pchg_v:+.1f}%")
-        c3.metric("STH Resale", "✓ Healthy" if d["sth_healthy"] else "⚠ Risk",
-                  delta_color="off")
-        c4.markdown(
-            f"**Confidence**<br>"
-            f'<span style="font-size:22px;color:{conf_color}">'
-            f"{'●' * conf}{'○' * (5 - conf)}</span> "
-            f'<span style="color:{conf_color};font-weight:700">{conf}/5</span>',
-            unsafe_allow_html=True,
+    with col_map:
+        svg_html = _build_stadium_svg(
+            section_data, scenario, selected_game_label,
+            highlighted_groups=highlighted_groups,
+            selected_group=clicked_group,
         )
+        st.components.v1.html(svg_html, height=660, scrolling=False)
+
+    with col_detail:
+        _render_section_detail(
+            clicked_group, section_data, scenario,
+            selected_game_label, selected_opponent,
+        )
+
+
+def _render_section_detail(
+    selected_grp: str | None,
+    section_data: dict,
+    scenario: str,
+    game_label: str,
+    opponent: str | None,
+) -> None:
+    """Render the section detail panel (right of map). Shows overview table
+    when no section is selected; full metrics when one is clicked."""
+
+    if not selected_grp or selected_grp not in section_data:
+        # ── Initial state: overview table ─────────────────────────────────────
         st.markdown(
-            f'<div style="background:#1E3A8A;color:white;padding:8px 14px;'
-            f'border-radius:6px;font-weight:600;margin-top:4px">{rec_label}</div>',
+            '<div style="color:#9CA3AF;font-size:13px;margin-bottom:10px">'
+            '👆 Click a section on the map to see full detail</div>',
             unsafe_allow_html=True,
-        ) if pchg_v > 5 else (
-            st.markdown(
-                f'<div style="background:#DC2626;color:white;padding:8px 14px;'
-                f'border-radius:6px;font-weight:600;margin-top:4px">{rec_label}</div>',
-                unsafe_allow_html=True,
-            ) if pchg_v < -5 else
-            st.markdown(
-                f'<div style="background:#F1F5F9;color:#374151;padding:8px 14px;'
-                f'border:1px solid #CBD5E1;border-radius:6px;font-weight:600;margin-top:4px">{rec_label}</div>',
-                unsafe_allow_html=True,
-            )
         )
 
-        if d.get("explanation"):
-            st.info(f"**AI Insight:** {d['explanation']}")
+        rows = []
+        for grp, d in sorted(section_data.items()):
+            meta = SECTION_METADATA.get(grp, {})
+            cap  = d["capacity"]
+            face = d["face_price"]
+            st_pct = d["sell_through"]
+            face_sellout = face * cap
+            exp_rev      = face * (st_pct / 100) * cap
+            rows.append({
+                "Section":         meta.get("sections", grp),
+                "Level":           meta.get("level", ""),
+                "Capacity":        f"{cap:,}",
+                "Face (sellout)":  f"${face_sellout:,.0f}",
+                "Exp. Revenue":    f"${exp_rev:,.0f}",
+            })
+
+        if rows:
+            overview_df = pd.DataFrame(rows)
+            st.dataframe(overview_df, use_container_width=True, hide_index=True, height=580)
+        return
+
+    # ── Section selected: full detail ─────────────────────────────────────────
+    d    = section_data[selected_grp]
+    meta = SECTION_METADATA.get(selected_grp, {})
+
+    face    = d["face_price"]
+    scen_p  = d["scenario_price"]
+    pchg    = d["price_change_pct"]
+    cap     = d["capacity"]
+    st_pct  = d["sell_through"]
+    sold_avg = d["sold_price_avg"]
+    rng_lo  = scen_p * 0.96
+    rng_hi  = scen_p * 1.04
+    sec_premium = (sold_avg / face - 1) * 100 if face > 0 else 0
+
+    face_sellout = face * cap
+    exp_rev      = face * (st_pct / 100) * cap
+    rec_rev      = scen_p * (st_pct / 100) * cap
+    rev_uplift   = rec_rev - exp_rev
+
+    conf, conf_color = _confidence(pchg)
+    rec_label, rec_bg = _rec_label_and_color(pchg)
+
+    # Section name header
+    section_display = meta.get("sections", selected_grp)
+    seat_type  = meta.get("seat_type", "")
+    level      = meta.get("level", "")
+    view_angle = meta.get("view_angle", "")
+
+    st.markdown(
+        f'<div style="background:#111827;border:1px solid #374151;border-radius:10px;padding:14px 16px">'
+        f'<div style="font-size:22px;font-weight:700;color:#F9FAFB;margin-bottom:2px">'
+        f'Section {section_display}</div>'
+        f'<div style="font-size:12px;color:#9CA3AF">'
+        f'{level} · {seat_type} · {view_angle}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("")
+
+    # Recommendation badge
+    arrow = "↑" if pchg > 5 else ("↓" if pchg < -5 else "→")
+    st.markdown(
+        f'<div style="background:{rec_bg};color:white;padding:9px 14px;'
+        f'border-radius:7px;font-weight:600;font-size:14px;margin-bottom:8px">'
+        f'{arrow} {rec_label}</div>',
+        unsafe_allow_html=True,
+    )
+
+    # Pricing metrics grid
+    m1, m2 = st.columns(2)
+    m1.metric("Face Price (current)",    f"${face:.0f}")
+    m2.metric("Recommended Price",        f"${rng_lo:.0f}–${rng_hi:.0f}",
+              delta=f"{pchg:+.1f}%")
+
+    m3, m4 = st.columns(2)
+    m3.metric("Secondary Market Avg",    f"${sold_avg:.0f}",
+              delta=f"+{sec_premium:.0f}% above face",
+              help="Average sold price on secondary market (StubHub, SeatGeek, etc.)")
+    m4.metric("Sell-Through Forecast",   f"{st_pct:.0f}%",
+              help="Expected % of seats sold at current pricing")
+
+    st.markdown("---")
+
+    # Revenue metrics
+    r1, r2, r3 = st.columns(3)
+    r1.metric("Face Sellout Value",      f"${face_sellout:,.0f}",
+              help="Revenue if section sells out at face price")
+    r2.metric("Expected Revenue",         f"${exp_rev:,.0f}",
+              help="Face price × forecast sell-through × capacity")
+    r3.metric("Revenue at Rec. Price",   f"${rec_rev:,.0f}",
+              delta=f"${rev_uplift:+,.0f}",
+              help="Recommended price × forecast sell-through × capacity")
+
+    st.markdown("---")
+
+    # Confidence + STH
+    q1, q2 = st.columns(2)
+    q1.markdown(
+        f'<div style="font-size:12px;color:#9CA3AF;margin-bottom:4px">Model Confidence</div>'
+        f'<span style="font-size:20px;color:{conf_color}">{"●"*conf}{"○"*(5-conf)}</span> '
+        f'<span style="color:{conf_color};font-weight:700">{conf}/5</span>',
+        unsafe_allow_html=True,
+    )
+    sth_icon  = "✓" if d["sth_healthy"] else "⚠"
+    sth_color = "#10B981" if d["sth_healthy"] else "#F59E0B"
+    sth_label = "Healthy" if d["sth_healthy"] else "Risk — face price below resale avg"
+    q2.markdown(
+        f'<div style="font-size:12px;color:#9CA3AF;margin-bottom:4px">STH Resale Health</div>'
+        f'<span style="color:{sth_color};font-weight:700;font-size:16px">{sth_icon} {sth_label}</span>',
+        unsafe_allow_html=True,
+    )
+
+    # Market health
+    mh = d.get("market_health", "healthy")
+    mh_colors = {"hot": "#EF4444", "warm": "#F59E0B", "healthy": "#10B981", "cold": "#6B7280"}
+    mh_color = mh_colors.get(mh, "#9CA3AF")
+    st.markdown(
+        f'<div style="margin-top:10px;font-size:12px;color:#9CA3AF">Market Signal: '
+        f'<span style="color:{mh_color};font-weight:600;text-transform:capitalize">{mh}</span></div>',
+        unsafe_allow_html=True,
+    )
+
+    # AI explanation
+    if d.get("explanation"):
+        st.markdown("**AI Insight**")
+        st.info(d["explanation"])
 
 
 # ── View 3: Price Gap Analysis ────────────────────────────────────────────────
