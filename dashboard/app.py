@@ -215,19 +215,19 @@ def _derive_conference(opponent: str) -> str:
 
 # ── Section metadata (seat type, level, view angle per group) ─────────────────
 SECTION_METADATA = {
-    "LB_101_105": {"seat_type": "Reserved",         "level": "Lower Bowl",            "view_angle": "Sideline East",          "sections": "101–105"},
-    "LB_106_110": {"seat_type": "Reserved",         "level": "Lower Bowl",            "view_angle": "Sideline Center",        "sections": "106–110"},
-    "LB_111_115": {"seat_type": "Reserved",         "level": "Lower Bowl",            "view_angle": "Sideline/Corner West",   "sections": "111–115"},
-    "LB_116_120": {"seat_type": "Reserved",         "level": "Lower Bowl",            "view_angle": "Goal End West",          "sections": "116–120"},
-    "LB_121_123": {"seat_type": "Reserved",         "level": "Lower Bowl",            "view_angle": "Corner NW",              "sections": "121–123"},
-    "LB_133_135": {"seat_type": "Reserved",         "level": "Lower Bowl",            "view_angle": "Corner NE",              "sections": "133–135"},
-    "LB_141":     {"seat_type": "Reserved",         "level": "Lower Bowl",            "view_angle": "Corner/Goal SE",         "sections": "141"},
-    "FC_C124_C132":{"seat_type": "Club",            "level": "Field Club",            "view_angle": "Sideline North",         "sections": "C124–C132"},
-    "GA_136_140": {"seat_type": "General Admission","level": "Lower Bowl",            "view_angle": "Goal End East (Sandbox)","sections": "136–140"},
-    "UB_202_207": {"seat_type": "Reserved",         "level": "Upper Bowl (200-Level)","view_angle": "Sideline East Upper",    "sections": "202–207"},
-    "UB_208_212": {"seat_type": "Reserved",         "level": "Upper Bowl (200-Level)","view_angle": "Sideline West Upper",    "sections": "208–212"},
-    "WC_C223_C231":{"seat_type": "Club",            "level": "Club Level",            "view_angle": "Goal End West Club",     "sections": "C223–C231"},
-    "UC_323_334": {"seat_type": "Reserved",         "level": "Upper Concourse",       "view_angle": "Mixed Upper",            "sections": "323–334"},
+    "LB_101_105":  {"seat_type": "Reserved",          "level": "100",         "view_angle": "Sideline",  "sections": "101–105"},
+    "LB_106_110":  {"seat_type": "Reserved",          "level": "100",         "view_angle": "Midfield",  "sections": "106–110"},
+    "LB_111_115":  {"seat_type": "Reserved",          "level": "100",         "view_angle": "Sideline",  "sections": "111–115"},
+    "LB_116_120":  {"seat_type": "Reserved",          "level": "100",         "view_angle": "End Zone",  "sections": "116–120"},
+    "LB_121_123":  {"seat_type": "Reserved",          "level": "100",         "view_angle": "Corner",    "sections": "121–123"},
+    "LB_133_135":  {"seat_type": "Reserved",          "level": "100",         "view_angle": "Corner",    "sections": "133–135"},
+    "LB_141":      {"seat_type": "Reserved",          "level": "100",         "view_angle": "Corner",    "sections": "141"},
+    "FC_C124_C132":{"seat_type": "Club",              "level": "Field Level", "view_angle": "Midfield",  "sections": "C124–C132"},
+    "GA_136_140":  {"seat_type": "General Admission", "level": "Field Level", "view_angle": "End Zone",  "sections": "136–140"},
+    "UB_202_207":  {"seat_type": "Reserved",          "level": "200",         "view_angle": "Sideline",  "sections": "202–207"},
+    "UB_208_212":  {"seat_type": "Reserved",          "level": "200",         "view_angle": "Sideline",  "sections": "208–212"},
+    "WC_C223_C231":{"seat_type": "Club",              "level": "Suites",      "view_angle": "End Zone",  "sections": "C223–C231"},
+    "UC_323_334":  {"seat_type": "Reserved",          "level": "300",         "view_angle": "Midfield",  "sections": "323–334"},
 }
 
 
@@ -489,9 +489,7 @@ def _build_stadium_svg(
         fill = sec_fill(grp)
         opac = sec_opacity(grp)
         tip  = hover_txt(lbl, grp)
-        d    = section_data.get(grp, {})
-        sp   = d.get("scenario_price", d.get("face_price", 0)) if d else 0
-        ptxt = f"${sp:.0f}" if sp else lbl[:5]
+        ptxt = lbl
         mx, my = px((x0+x1)/2, (y0+y1)/2)
         poly  = pts((x0,y0),(x1,y0),(x1,y1),(x0,y1))
         rl    = rlines_h(x0, x1, y0, y1, nr) if rows == "h" else rlines_v(x0, x1, y0, y1, nr)
@@ -559,15 +557,22 @@ def _build_stadium_svg(
         add_sec(str(323+i), "UC_323_334", _ucb[i], _ucb[i+1], N_FC, N_UC, rows="h", nr=12)
 
     # ═══════════════════════════════════════════════════════════════════════
-    # EAST GOAL END — 3 stacked zones, x: E_IN to E_OUT
-    # Top:    LB_133_135  (NE corner area, sections 133-135)
-    # Middle: GA_136_140  (Sandbox GA, supporters)
-    # Bottom: LB_141      (SE corner, section 141)
+    # EAST GOAL END — individual sections, x: E_IN to E_OUT
+    # NE corner:  133, 134, 135  (3 strips, north → south)
+    # Sandbox GA: 136–140        (5 strips, north → south)
+    # SE corner:  141
     # ═══════════════════════════════════════════════════════════════════════
-    E_TOP = 0.22; E_BOT = -0.22   # zone boundaries within east end
-    add_sec("133–135",   "LB_133_135", E_IN, E_OUT,  E_TOP, G_YSPAN,  rows="v", nr=14)
-    add_sec("Sandbox GA","GA_136_140", E_IN, E_OUT,  E_BOT, E_TOP,    rows="v", nr=10)
-    add_sec("141",       "LB_141",     E_IN, E_OUT, -G_YSPAN, E_BOT,  rows="v", nr=14)
+    E_TOP = 0.24; E_BOT = -0.24   # zone boundaries within east end
+    # NE corner sections 133-135
+    _ne_y = [G_YSPAN - i * (G_YSPAN - E_TOP) / 3 for i in range(4)]
+    for i, sn in enumerate(["133", "134", "135"]):
+        add_sec(sn, "LB_133_135", E_IN, E_OUT, _ne_y[i + 1], _ne_y[i], rows="v", nr=10)
+    # Sandbox GA sections 136-140
+    _ga_y = [E_TOP - i * (E_TOP - E_BOT) / 5 for i in range(6)]
+    for i in range(5):
+        add_sec(str(136 + i), "GA_136_140", E_IN, E_OUT, _ga_y[i + 1], _ga_y[i], rows="v", nr=8)
+    # SE corner section 141
+    add_sec("141", "LB_141", E_IN, E_OUT, -G_YSPAN, E_BOT, rows="v", nr=10)
 
     # ── Pitch markings ─────────────────────────────────────────────────────
     def pl(x0d, y0d, x1d, y1d):
@@ -596,15 +601,7 @@ def _build_stadium_svg(
         f'<circle cx="{CX:.1f}" cy="{CY:.1f}" r="3" fill="rgba(255,255,255,0.9)"/>',
         pr(PX0, -0.275, PX0+0.305, 0.275), pr(PX1-0.305, -0.275, PX1, 0.275),
         pr(PX0, -0.110, PX0+0.110, 0.110), pr(PX1-0.110, -0.110, PX1, 0.110),
-        pr(PX0-0.07, -0.09, PX0, 0.09, filled=True, fc="rgba(255,255,255,0.25)"),
-        pr(PX1, -0.09, PX1+0.07, 0.09, filled=True, fc="rgba(255,255,255,0.25)"),
     ]
-    for cxd, cyd, a1d, a2d in [(PX0,PY0,0,90),(PX1,PY0,90,180),(PX1,PY1,180,270),(PX0,PY1,270,360)]:
-        sx2, sy2 = px(cxd, cyd); r2 = 0.10*SC
-        a1r, a2r = math.radians(a1d), math.radians(a2d)
-        ax2 = sx2+r2*math.cos(a1r); ay2 = sy2+r2*math.sin(a1r)
-        bx2 = sx2+r2*math.cos(a2r); by2 = sy2+r2*math.sin(a2r)
-        pitch_parts.append(f'<path d="M {sx2:.1f},{sy2:.1f} L {ax2:.1f},{ay2:.1f} A {r2:.1f},{r2:.1f} 0 0,1 {bx2:.1f},{by2:.1f} Z" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.2"/>')
 
     # ── Area labels ─────────────────────────────────────────────────────────
     def tlbl(text, dx, dy, size=10, color="#9CA3AF", weight="normal"):
@@ -658,10 +655,11 @@ def _build_stadium_svg(
 <!-- Pitch markings -->
 {''.join(pitch_parts)}
 
-<!-- Area labels -->
-{''.join(area_labels)}
 
 </g>
+
+<!-- Area labels (fixed position, zoom-invariant) -->
+{''.join(area_labels)}
 
 <!-- Tooltip (fixed, outside transform group) -->
 <g id="ttbox" visibility="hidden">
@@ -913,9 +911,10 @@ def render_seat_map():
             )
 
     # ── Section filter ────────────────────────────────────────────────────────
-    all_seat_types = sorted({m["seat_type"] for m in SECTION_METADATA.values()})
-    all_levels     = sorted({m["level"]     for m in SECTION_METADATA.values()})
-    all_views      = ["Sideline", "Goal End", "Corner", "Upper", "Mixed"]
+    all_seat_types = sorted({m["seat_type"]    for m in SECTION_METADATA.values()})
+    all_levels     = sorted({m["level"]        for m in SECTION_METADATA.values()},
+                            key=lambda x: {"Field Level":0,"100":1,"200":2,"300":3,"Suites":4}.get(x, 9))
+    all_views      = sorted({m["view_angle"]   for m in SECTION_METADATA.values()})
 
     with st.expander("🪑 Filter Sections", expanded=False):
         sf1, sf2, sf3 = st.columns(3)
@@ -931,7 +930,7 @@ def render_seat_map():
         for grp, meta in SECTION_METADATA.items():
             type_ok  = (not sel_types)  or meta["seat_type"] in sel_types
             level_ok = (not sel_levels) or meta["level"]     in sel_levels
-            view_ok  = (not sel_views)  or any(v in meta["view_angle"] for v in sel_views)
+            view_ok  = (not sel_views)  or meta["view_angle"] in sel_views
             if type_ok and level_ok and view_ok:
                 highlighted_groups.add(grp)
     else:
