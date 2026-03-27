@@ -231,6 +231,25 @@ SECTION_METADATA = {
 }
 
 
+# Number of individual sections rendered per group — used to split group capacity
+# into per-section seat counts for accurate dot rendering.
+SECTION_GROUP_COUNTS: dict[str, int] = {
+    "LB_101_105":   5,   # south lower: 101-105
+    "LB_106_110":   5,   # south lower: 106-110
+    "LB_111_115":   5,   # south lower 111-113 + west lower 114-115
+    "LB_116_120":   5,   # west lower: 116-120
+    "LB_121_123":   3,   # west lower corner: 121-123
+    "LB_133_135":   3,   # east corner: 133-135
+    "LB_141":       1,   # east corner: 141
+    "FC_C124_C132": 9,   # north field club: C124-C132
+    "GA_136_140":   5,   # east GA sandbox: 136-140
+    "UB_202_207":   6,   # south upper: 201-206
+    "UB_208_212":   5,   # south upper: 207-211
+    "WC_C223_C231": 9,   # west club/suites: C223-C231
+    "UC_323_334":  12,   # north upper concourse: 323-334
+}
+
+
 def _estimate_sth(grp: str, capacity: int) -> int:
     """Estimate season ticket holders for a section group based on tier."""
     meta = SECTION_METADATA.get(grp, {})
@@ -514,35 +533,55 @@ def _build_stadium_svg(
                     f'dominant-baseline="middle" fill="rgba(255,255,255,0.88)" '
                     f'font-size="{fsz}" font-family="Arial" font-weight="600" '
                     f'pointer-events="none">{ptxt}</text>')
-        # Seat dots — rendered at SVG scale, shown via CSS when zoomed in
-        # 1 data-unit = 50m (pitch 2.1 units = 105m).
-        # Real seat pitch ≈ 0.50–0.75m → 0.010–0.015 units.
-        # _SP=0.012 gives ~15-21 seats/row for 100-level and FC sections.
-        _SP = 0.012   # data-unit spacing between seat centres (~0.60m real)
-        _DR = 2.0     # dot radius in SVG px
+        # ── Seat dots ─────────────────────────────────────────────────────────
+        # Derive per-section capacity from pipeline group capacity ÷ section count.
+        # Lay out exactly that many dots in a grid whose aspect ratio matches the
+        # physical section proportions, so dot spacing is uniform and realistic.
+        _grp_cap = section_data.get(grp, {}).get("capacity", 0)
+        _n_secs  = SECTION_GROUP_COUNTS.get(grp, 1)
+        _cap     = max(0, round(_grp_cap / _n_secs))
         _dots: list[str] = []
-        if rows == "h":
-            _rs = abs(y1 - y0) / (nr + 1)
-            _ns = max(2, round(abs(x1 - x0) / _SP))
-            _ss = abs(x1 - x0) / (_ns + 1)
-            _ys = 1 if y1 > y0 else -1;  _xs = 1 if x1 > x0 else -1
-            for _ri in range(1, nr + 1):
-                _ry = y0 + _ri * _rs * _ys
-                for _si in range(1, _ns + 1):
-                    _sx = x0 + _si * _ss * _xs
-                    _dcx, _dcy = px(_sx, _ry)
-                    _dots.append(f'<circle class="seat" cx="{_dcx:.1f}" cy="{_dcy:.1f}" r="{_DR}"/>')
-        else:
-            _cs = abs(x1 - x0) / (nr + 1)
-            _ns = max(2, round(abs(y1 - y0) / _SP))
-            _ss = abs(y1 - y0) / (_ns + 1)
-            _xs = 1 if x1 > x0 else -1;  _ys = 1 if y1 > y0 else -1
-            for _ci in range(1, nr + 1):
-                _cxd = x0 + _ci * _cs * _xs
-                for _si in range(1, _ns + 1):
-                    _sy = y0 + _si * _ss * _ys
-                    _dcx, _dcy = px(_cxd, _sy)
-                    _dots.append(f'<circle class="seat" cx="{_dcx:.1f}" cy="{_dcy:.1f}" r="{_DR}"/>')
+        if _cap > 0:
+            import math as _m
+            _wpx = abs(x1 - x0) * SC
+            _hpx = abs(y1 - y0) * SC
+            if rows == "h":
+                # Rows run horizontally (across width); each row has spr seats
+                _spr  = max(2, round(_m.sqrt(_cap * _wpx / max(1, _hpx))))
+                _nr_d = _m.ceil(_cap / _spr)
+                _rs_u = abs(y1 - y0) / (_nr_d + 1)   # row step (data units)
+                _ss_u = abs(x1 - x0) / (_spr  + 1)   # seat step (data units)
+                _dr   = max(0.7, min(2.2, min(_rs_u, _ss_u) * SC * 0.40))
+                _ys   = 1 if y1 > y0 else -1
+                _xs   = 1 if x1 > x0 else -1
+                _n    = 0
+                for _ri in range(1, _nr_d + 1):
+                    _row_n = min(_spr, _cap - _n)
+                    if _row_n <= 0: break
+                    _ry = y0 + _ri * _rs_u * _ys
+                    for _si in range(1, _row_n + 1):
+                        _sx = x0 + _si * _ss_u * _xs
+                        _cx, _cy = px(_sx, _ry)
+                        _dots.append(f'<circle class="seat" cx="{_cx:.1f}" cy="{_cy:.1f}" r="{_dr:.2f}"/>')
+                        _n += 1
+            else:  # "v" — columns run vertically; each column has spc seats
+                _spc  = max(2, round(_m.sqrt(_cap * _hpx / max(1, _wpx))))
+                _nc_d = _m.ceil(_cap / _spc)
+                _cs_u = abs(x1 - x0) / (_nc_d + 1)
+                _ss_u = abs(y1 - y0) / (_spc  + 1)
+                _dr   = max(0.7, min(2.2, min(_cs_u, _ss_u) * SC * 0.40))
+                _xs   = 1 if x1 > x0 else -1
+                _ys   = 1 if y1 > y0 else -1
+                _n    = 0
+                for _ci in range(1, _nc_d + 1):
+                    _col_n = min(_spc, _cap - _n)
+                    if _col_n <= 0: break
+                    _cxd = x0 + _ci * _cs_u * _xs
+                    for _si in range(1, _col_n + 1):
+                        _sy = y0 + _si * _ss_u * _ys
+                        _cx, _cy = px(_cxd, _sy)
+                        _dots.append(f'<circle class="seat" cx="{_cx:.1f}" cy="{_cy:.1f}" r="{_dr:.2f}"/>')
+                        _n += 1
         _dsv = "\n  ".join(_dots)
         sections_svg.append(
             f'<g class="sec" data-tip="{tip}" data-grp="{grp}" style="opacity:{opac}">\n'
