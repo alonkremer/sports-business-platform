@@ -948,26 +948,45 @@ def render_seat_map():
                                        "aggressive": "Aggressive"}[s],
             )
 
-    # ── Section filter ────────────────────────────────────────────────────────
-    all_seat_types = sorted({m["seat_type"]    for m in SECTION_METADATA.values()})
-    all_levels     = sorted({m["level"]        for m in SECTION_METADATA.values()},
-                            key=lambda x: {"Field Level":0,"100":1,"200":2,"300":3,"Suites":4}.get(x, 9))
-    all_views      = sorted({m["view_angle"]   for m in SECTION_METADATA.values()})
+    # ── Section filter (cross-filtering: each dropdown constrained by other two) ──
+    _LEVEL_ORDER = {"Field Level": 0, "100": 1, "200": 2, "300": 3, "Suites": 4}
+
+    # Read current selections from session state (persist across reruns)
+    _cur_types  = st.session_state.get("flt_types",  [])
+    _cur_levels = st.session_state.get("flt_levels", [])
+    _cur_views  = st.session_state.get("flt_views",  [])
+
+    # Available options for each filter = values that exist in sections matching the OTHER two filters
+    _avail_types  = sorted({m["seat_type"]  for m in SECTION_METADATA.values()
+                             if (not _cur_levels or m["level"]       in _cur_levels)
+                             and (not _cur_views  or m["view_angle"] in _cur_views)})
+    _avail_levels = sorted({m["level"]      for m in SECTION_METADATA.values()
+                             if (not _cur_types  or m["seat_type"]   in _cur_types)
+                             and (not _cur_views  or m["view_angle"] in _cur_views)},
+                            key=lambda x: _LEVEL_ORDER.get(x, 9))
+    _avail_views  = sorted({m["view_angle"] for m in SECTION_METADATA.values()
+                             if (not _cur_types  or m["seat_type"]   in _cur_types)
+                             and (not _cur_levels or m["level"]      in _cur_levels)})
+
+    # Drop selected values that are no longer in the available set
+    for _key, _avail in [("flt_types", _avail_types), ("flt_levels", _avail_levels), ("flt_views", _avail_views)]:
+        if _key in st.session_state:
+            st.session_state[_key] = [v for v in st.session_state[_key] if v in _avail]
 
     with st.expander("🪑 Filter Sections", expanded=False):
         sf1, sf2, sf3 = st.columns(3)
         with sf1:
-            sel_types  = st.multiselect("Seat Type",  all_seat_types, default=[])
+            sel_types  = st.multiselect("Seat Type",  _avail_types,  key="flt_types")
         with sf2:
-            sel_levels = st.multiselect("Level",       all_levels,    default=[])
+            sel_levels = st.multiselect("Level",       _avail_levels, key="flt_levels")
         with sf3:
-            sel_views  = st.multiselect("View Angle",  all_views,     default=[])
+            sel_views  = st.multiselect("View Angle",  _avail_views,  key="flt_views")
 
     if any([sel_types, sel_levels, sel_views]):
         highlighted_groups: set | None = set()
         for grp, meta in SECTION_METADATA.items():
-            type_ok  = (not sel_types)  or meta["seat_type"] in sel_types
-            level_ok = (not sel_levels) or meta["level"]     in sel_levels
+            type_ok  = (not sel_types)  or meta["seat_type"]  in sel_types
+            level_ok = (not sel_levels) or meta["level"]      in sel_levels
             view_ok  = (not sel_views)  or meta["view_angle"] in sel_views
             if type_ok and level_ok and view_ok:
                 highlighted_groups.add(grp)
@@ -1044,6 +1063,7 @@ def render_seat_map():
         _render_section_detail(
             clicked_group, section_data, scenario,
             selected_game_label, selected_opponent,
+            highlighted_groups=highlighted_groups,
         )
 
 
@@ -1053,6 +1073,7 @@ def _render_section_detail(
     scenario: str,
     game_label: str,
     opponent: str | None,
+    highlighted_groups: set | None = None,
 ) -> None:
     """Render the section detail panel (right of map). Shows overview table
     when no section is selected; full metrics when one is clicked."""
@@ -1067,6 +1088,8 @@ def _render_section_detail(
 
         rows = []
         for grp, d in sorted(section_data.items()):
+            if highlighted_groups is not None and grp not in highlighted_groups:
+                continue
             meta = SECTION_METADATA.get(grp, {})
             cap  = d["capacity"]
             face = d["face_price"]
