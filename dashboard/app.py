@@ -1806,7 +1806,7 @@ def _render_section_table(
     cur_secs = list(selected_sections)
 
     # ── Zoom level controls: −/+ to collapse/expand ──────────────────────
-    detail_level = st.session_state.get("tbl_detail", "individual")
+    detail_level = st.session_state.get("tbl_detail", "level")
     zoom_order = ["total", "level", "group", "individual"]
     cur_idx = zoom_order.index(detail_level) if detail_level in zoom_order else 3
 
