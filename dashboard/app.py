@@ -372,9 +372,7 @@ def render_sidebar():
         view = st.radio(
             "Navigation",
             options=[
-                "Season Overview",
                 "Seat Map",
-                "Price Gap Analysis",
                 "Pricing Workshop",
                 "STH Value Dashboard",
                 "Performance Report",
