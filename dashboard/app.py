@@ -1221,27 +1221,46 @@ def render_seat_map():
         max_dt = home_games["date_dt"].max()
 
         with st.expander("🔍 Filter Games", expanded=False):
-            # Conference first — constrains Opponent options
+            # ── Cross-constrained filters: each dropdown only shows values
+            #    that would produce at least one game given the OTHER filters. ──
             _cur_confs = st.session_state.get("game_confs", [])
             _cur_opps  = st.session_state.get("game_opps",  [])
             _cur_comps = st.session_state.get("game_comps", [])
+
+            # Pool excluding each filter so we can compute available options
+            def _pool(excl: str) -> pd.DataFrame:
+                """Return games matching all current filters EXCEPT `excl`."""
+                pool = home_games.copy()
+                if excl != "conf" and _cur_confs:
+                    pool = pool[pool["conference"].isin(_cur_confs)]
+                if excl != "opp" and _cur_opps:
+                    pool = pool[pool["opponent"].isin(_cur_opps)]
+                if excl != "comp" and _cur_comps:
+                    pool = pool[pool["competition"].isin(_cur_comps)]
+                return pool
+
+            _avail_confs = sorted(_pool("conf")["conference"].dropna().unique().tolist())
+            _avail_opps  = sorted(_pool("opp")["opponent"].dropna().unique().tolist())
+            _avail_comps = sorted(_pool("comp")["competition"].dropna().unique().tolist())
+
+            # Prune stale selections that are no longer reachable
+            if "game_confs" in st.session_state:
+                st.session_state["game_confs"] = [v for v in st.session_state["game_confs"] if v in _avail_confs]
+            if "game_opps" in st.session_state:
+                st.session_state["game_opps"] = [v for v in st.session_state["game_opps"] if v in _avail_opps]
+            if "game_comps" in st.session_state:
+                st.session_state["game_comps"] = [v for v in st.session_state["game_comps"] if v in _avail_comps]
 
             gc1, gc2, gc3 = st.columns([1, 1, 1])
             with gc1:
                 _cb1, _cb2 = st.columns([5, 1])
                 with _cb1:
-                    sel_confs = st.multiselect("Conference", all_confs, key="game_confs")
+                    sel_confs = st.multiselect("Conference", _avail_confs, key="game_confs")
                 with _cb2:
                     st.write("")
                     if st.button("✕", key="clr_conf", help="Clear conference"):
                         st.session_state["game_confs"] = []; st.rerun()
             with gc2:
-                # Opponent options constrained by selected conferences
-                _avail_opps = sorted([o for o in all_opps
-                                       if not sel_confs or MLS_TEAMS.get(o, {}).get("conf") in sel_confs])
-                # Drop selected opponents no longer available
-                if "game_opps" in st.session_state:
-                    st.session_state["game_opps"] = [v for v in st.session_state["game_opps"] if v in _avail_opps]
                 _cb1, _cb2 = st.columns([5, 1])
                 with _cb1:
                     sel_opps = st.multiselect("Opponent", _avail_opps, key="game_opps")
@@ -1252,7 +1271,7 @@ def render_seat_map():
             with gc3:
                 _cb1, _cb2 = st.columns([5, 1])
                 with _cb1:
-                    sel_comps = st.multiselect("Competition", all_comps, key="game_comps")
+                    sel_comps = st.multiselect("Competition", _avail_comps, key="game_comps")
                 with _cb2:
                     st.write("")
                     if st.button("✕", key="clr_comp", help="Clear competition"):
@@ -1600,12 +1619,11 @@ def _render_section_table(
 ) -> None:
     """Full-width section data table with expand/collapse hierarchy.
 
-    Hierarchy levels:
-    - Level 0: Individual sections (e.g., 101, 102, 103)
-    - Level 1: Section groups (e.g., 101-105)   ← default view
-    - Level 2: By stadium level (e.g., Lower Bowl 100, Upper Bowl 200)
-
-    Expand/collapse buttons let users drill down or roll up.
+    Default view: one row per individual section (101, 102, ...).
+    User can collapse (+/−) to:
+      − Section groups (101-105)
+      − By level (Lower Bowl, Upper Bowl, ...)
+      − Stadium total (single row)
     """
     # Determine which groups to display
     if selected_sections:
@@ -1626,20 +1644,26 @@ def _render_section_table(
 
     cur_secs = list(selected_sections)
 
-    # ── Expand/Collapse controls ──────────────────────────────────────────
-    view_levels = {"By Level (grouped)": "level", "By Section Group": "group", "Individual Sections": "individual"}
-    btn_cols = st.columns([1, 1, 1, 3])
-    with btn_cols[0]:
-        if st.button("◀ By Level", key="tbl_level", use_container_width=True):
-            st.session_state["tbl_detail"] = "level"
-    with btn_cols[1]:
-        if st.button("● Section Groups", key="tbl_group", use_container_width=True):
-            st.session_state["tbl_detail"] = "group"
-    with btn_cols[2]:
-        if st.button("▶ Individual", key="tbl_indiv", use_container_width=True):
-            st.session_state["tbl_detail"] = "individual"
+    # ── Zoom level controls: −/+ to collapse/expand ──────────────────────
+    detail_level = st.session_state.get("tbl_detail", "individual")
+    zoom_order = ["total", "level", "group", "individual"]
+    cur_idx = zoom_order.index(detail_level) if detail_level in zoom_order else 3
 
-    detail_level = st.session_state.get("tbl_detail", "group")
+    btn_cols = st.columns([0.4, 0.4, 2, 1, 1, 1, 1])
+    with btn_cols[0]:
+        if st.button("−", key="tbl_zoom_out", help="Collapse / group rows"):
+            new_idx = max(0, cur_idx - 1)
+            st.session_state["tbl_detail"] = zoom_order[new_idx]
+            st.rerun()
+    with btn_cols[1]:
+        if st.button("+", key="tbl_zoom_in", help="Expand / show more detail"):
+            new_idx = min(len(zoom_order) - 1, cur_idx + 1)
+            st.session_state["tbl_detail"] = zoom_order[new_idx]
+            st.rerun()
+    label_map = {"total": "Stadium Total", "level": "By Level", "group": "Section Groups", "individual": "Individual Sections"}
+    with btn_cols[2]:
+        st.markdown(f'<span style="color:#9CA3AF;font-size:12px;line-height:38px">{label_map[detail_level]}</span>',
+                    unsafe_allow_html=True)
 
     def _toggle_href(grp: str) -> str:
         new = list(cur_secs)
@@ -1691,81 +1715,58 @@ def _render_section_table(
             f'</tr>'
         )
 
+    def _agg_groups(grps: list) -> dict:
+        """Aggregate metrics across a list of section groups."""
+        t_cap = t_sth = t_sg = t_res = t_avl = 0
+        t_trev = t_prev = 0.0
+        w_pchg = 0.0
+        for g in grps:
+            d = section_data.get(g, {})
+            c = d.get("capacity", 0)
+            t_cap  += c
+            t_sth  += d.get("sth_sold", 0)
+            t_sg   += d.get("sg_sold", 0)
+            t_res  += d.get("resale", 0)
+            t_avl  += d.get("available", 0)
+            t_trev += d.get("ticket_rev", 0)
+            t_prev += d.get("potential_rev", 0)
+            w_pchg += d.get("price_change_pct", 0) * c
+        sold = t_sth + t_sg
+        return {
+            "cap": t_cap, "sth": t_sth, "sg": t_sg, "res": t_res, "avl": t_avl,
+            "avg_p": t_trev / sold if sold > 0 else 0,
+            "trev": t_trev, "prev": t_prev,
+            "pchg": w_pchg / t_cap if t_cap > 0 else 0,
+        }
+
     rows_html = []
 
-    if detail_level == "level":
+    if detail_level == "total":
+        # ── Single stadium total row ─────────────────────────────────────
+        a = _agg_groups(show_grps)
+        rows_html.append(_data_row(
+            "Snapdragon Stadium", "All", "All",
+            a["cap"], a["sth"], a["sg"], a["res"], a["avl"],
+            a["avg_p"], a["trev"], a["prev"], a["pchg"],
+            is_header=True,
+        ))
+
+    elif detail_level == "level":
         # ── Aggregated by level ──────────────────────────────────────────
         for level_key, level_info in SECTION_HIERARCHY.items():
             grps_in_level = [g for g in level_info["groups"] if g in show_grps]
             if not grps_in_level:
                 continue
-            # Aggregate metrics across groups in this level
-            t_cap = t_sth = t_sg = t_res = t_avl = 0
-            t_trev = t_prev = 0.0
-            w_pchg = 0.0  # weighted by capacity
-            for g in grps_in_level:
-                d = section_data.get(g, {})
-                c = d.get("capacity", 0)
-                t_cap  += c
-                t_sth  += d.get("sth_sold", 0)
-                t_sg   += d.get("sg_sold", 0)
-                t_res  += d.get("resale", 0)
-                t_avl  += d.get("available", 0)
-                t_trev += d.get("ticket_rev", 0)
-                t_prev += d.get("potential_rev", 0)
-                w_pchg += d.get("price_change_pct", 0) * c
-            avg_p = t_trev / (t_sth + t_sg) if (t_sth + t_sg) > 0 else 0
-            avg_pchg = w_pchg / t_cap if t_cap > 0 else 0
-            meta0 = SECTION_METADATA.get(grps_in_level[0], {})
+            a = _agg_groups(grps_in_level)
             rows_html.append(_data_row(
-                level_info["label"], meta0.get("level", ""), "—",
-                t_cap, t_sth, t_sg, t_res, t_avl,
-                avg_p, t_trev, t_prev, avg_pchg,
+                level_info["label"], "", "—",
+                a["cap"], a["sth"], a["sg"], a["res"], a["avl"],
+                a["avg_p"], a["trev"], a["prev"], a["pchg"],
                 is_header=True,
             ))
 
-    elif detail_level == "individual":
-        # ── Individual sections within each group ────────────────────────
-        for grp in show_grps:
-            d = section_data.get(grp, {})
-            meta = SECTION_METADATA.get(grp, {})
-            is_sel = grp in selected_sections
-            n_secs = SECTION_GROUP_COUNTS.get(grp, 1)
-            indiv = INDIVIDUAL_SECTIONS.get(grp, [grp])
-
-            # Group header row
-            cap = d.get("capacity", 0)
-            sth = d.get("sth_sold", 0)
-            sg  = d.get("sg_sold", 0)
-            res = d.get("resale", 0)
-            avl = d.get("available", 0)
-            avg_p = d.get("avg_price", d.get("face_price", 0))
-            t_rev = d.get("ticket_rev", 0)
-            p_rev = d.get("potential_rev", 0)
-            pchg  = d.get("price_change_pct", 0)
-            rows_html.append(_data_row(
-                meta.get("sections", grp), meta.get("level", ""), meta.get("view_angle", ""),
-                cap, sth, sg, res, avl, avg_p, t_rev, p_rev, pchg,
-                is_sel=is_sel, grp=grp, is_header=True,
-            ))
-            # Individual section rows (proportional split)
-            for sec_name in indiv:
-                s_cap  = round(cap / n_secs)
-                s_sth  = round(sth / n_secs)
-                s_sg   = round(sg / n_secs)
-                s_res  = round(res / n_secs)
-                s_avl  = round(avl / n_secs)
-                s_trev = round(t_rev / n_secs)
-                s_prev = round(p_rev / n_secs)
-                rows_html.append(_data_row(
-                    sec_name, meta.get("level", ""), meta.get("view_angle", ""),
-                    s_cap, s_sth, s_sg, s_res, s_avl,
-                    avg_p, s_trev, s_prev, pchg,
-                    indent=1,
-                ))
-
-    else:
-        # ── Default: section groups ──────────────────────────────────────
+    elif detail_level == "group":
+        # ── Section groups (101-105, 106-110, ...) ───────────────────────
         for grp in show_grps:
             d = section_data.get(grp, {})
             meta = SECTION_METADATA.get(grp, {})
@@ -1780,34 +1781,58 @@ def _render_section_table(
                 is_sel=is_sel, grp=grp,
             ))
 
-    # ── Totals row ────────────────────────────────────────────────────────
-    tot_cap = tot_sth = tot_sg = tot_res = tot_avl = 0
-    tot_trev = tot_prev = 0.0
-    for grp in show_grps:
-        d = section_data.get(grp, {})
-        tot_cap  += d.get("capacity", 0)
-        tot_sth  += d.get("sth_sold", 0)
-        tot_sg   += d.get("sg_sold", 0)
-        tot_res  += d.get("resale", 0)
-        tot_avl  += d.get("available", 0)
-        tot_trev += d.get("ticket_rev", 0)
-        tot_prev += d.get("potential_rev", 0)
-    tot_avg_p = tot_trev / (tot_sth + tot_sg) if (tot_sth + tot_sg) > 0 else 0
-    rows_html.append(
-        f'<tr style="background:#0f1729;border-top:2px solid #374151;font-weight:700">'
-        f'<td style="padding:9px 12px;color:#E5E7EB">TOTAL</td>'
-        f'<td></td><td></td>'
-        f'<td style="padding:9px 10px;color:#E5E7EB;text-align:right">{tot_cap:,}</td>'
-        f'<td style="padding:9px 10px;color:#3B82F6;text-align:right">{tot_sth:,}</td>'
-        f'<td style="padding:9px 10px;color:#F59E0B;text-align:right">{tot_sg:,}</td>'
-        f'<td style="padding:9px 10px;color:#EC4899;text-align:right">{tot_res:,}</td>'
-        f'<td style="padding:9px 10px;color:#10B981;text-align:right">{tot_avl:,}</td>'
-        f'<td style="padding:9px 10px;color:#E5E7EB;text-align:right">${tot_avg_p:,.0f}</td>'
-        f'<td style="padding:9px 10px;color:#E5E7EB;text-align:right">${tot_trev:,.0f}</td>'
-        f'<td style="padding:9px 10px;color:#10B981;text-align:right">${tot_prev:,.0f}</td>'
-        f'<td></td>'
-        f'</tr>'
-    )
+    else:
+        # ── Default: individual sections (one row per section) ───────────
+        for grp in show_grps:
+            d = section_data.get(grp, {})
+            meta = SECTION_METADATA.get(grp, {})
+            is_sel = grp in selected_sections
+            n_secs = SECTION_GROUP_COUNTS.get(grp, 1)
+            indiv = INDIVIDUAL_SECTIONS.get(grp, [grp])
+
+            cap   = d.get("capacity", 0)
+            sth   = d.get("sth_sold", 0)
+            sg    = d.get("sg_sold", 0)
+            res   = d.get("resale", 0)
+            avl   = d.get("available", 0)
+            avg_p = d.get("avg_price", d.get("face_price", 0))
+            t_rev = d.get("ticket_rev", 0)
+            p_rev = d.get("potential_rev", 0)
+            pchg  = d.get("price_change_pct", 0)
+
+            for i, sec_name in enumerate(indiv):
+                s_cap  = cap // n_secs + (1 if i < cap % n_secs else 0)
+                s_sth  = sth // n_secs + (1 if i < sth % n_secs else 0)
+                s_sg   = sg  // n_secs + (1 if i < sg  % n_secs else 0)
+                s_res  = res // n_secs + (1 if i < res % n_secs else 0)
+                s_avl  = avl // n_secs + (1 if i < avl % n_secs else 0)
+                s_trev = t_rev / n_secs
+                s_prev = p_rev / n_secs
+                rows_html.append(_data_row(
+                    sec_name, meta.get("level", ""), meta.get("view_angle", ""),
+                    s_cap, s_sth, s_sg, s_res, s_avl,
+                    avg_p, s_trev, s_prev, pchg,
+                    is_sel=is_sel, grp=grp,
+                ))
+
+    # ── Totals row (always shown unless already at total level) ──────────
+    if detail_level != "total":
+        a = _agg_groups(show_grps)
+        rows_html.append(
+            f'<tr style="background:#0f1729;border-top:2px solid #374151;font-weight:700">'
+            f'<td style="padding:9px 12px;color:#E5E7EB">TOTAL</td>'
+            f'<td></td><td></td>'
+            f'<td style="padding:9px 10px;color:#E5E7EB;text-align:right">{a["cap"]:,}</td>'
+            f'<td style="padding:9px 10px;color:#3B82F6;text-align:right">{a["sth"]:,}</td>'
+            f'<td style="padding:9px 10px;color:#F59E0B;text-align:right">{a["sg"]:,}</td>'
+            f'<td style="padding:9px 10px;color:#EC4899;text-align:right">{a["res"]:,}</td>'
+            f'<td style="padding:9px 10px;color:#10B981;text-align:right">{a["avl"]:,}</td>'
+            f'<td style="padding:9px 10px;color:#E5E7EB;text-align:right">${a["avg_p"]:,.0f}</td>'
+            f'<td style="padding:9px 10px;color:#E5E7EB;text-align:right">${a["trev"]:,.0f}</td>'
+            f'<td style="padding:9px 10px;color:#10B981;text-align:right">${a["prev"]:,.0f}</td>'
+            f'<td></td>'
+            f'</tr>'
+        )
 
     th = ('background:#0f1729;color:#6B7280;font-size:11px;text-transform:uppercase;'
           'letter-spacing:0.05em;font-weight:500;border-bottom:1px solid #374151')
