@@ -215,19 +215,20 @@ def _derive_conference(opponent: str) -> str:
 
 # ── Section metadata (seat type, level, view angle per group) ─────────────────
 SECTION_METADATA = {
-    "LB_101_105":  {"seat_type": "Reserved",          "level": "100",         "view_angle": "Sideline",  "sections": "101–105"},
-    "LB_106_110":  {"seat_type": "Reserved",          "level": "100",         "view_angle": "Midfield",  "sections": "106–110"},
-    "LB_111_115":  {"seat_type": "Reserved",          "level": "100",         "view_angle": "Sideline",  "sections": "111–115"},
-    "LB_116_120":  {"seat_type": "Reserved",          "level": "100",         "view_angle": "End Zone",  "sections": "116–120"},
-    "LB_121_123":  {"seat_type": "Reserved",          "level": "100",         "view_angle": "Corner",    "sections": "121–123"},
-    "LB_133_135":  {"seat_type": "Reserved",          "level": "100",         "view_angle": "Corner",    "sections": "133–135"},
-    "LB_141":      {"seat_type": "Reserved",          "level": "100",         "view_angle": "Corner",    "sections": "141"},
-    "FC_C124_C132":{"seat_type": "Club",              "level": "Field Level", "view_angle": "Midfield",  "sections": "C124–C132"},
-    "GA_136_140":  {"seat_type": "General Admission", "level": "Field Level", "view_angle": "End Zone",  "sections": "136–140"},
-    "UB_202_207":  {"seat_type": "Reserved",          "level": "200",         "view_angle": "Sideline",  "sections": "202–207"},
-    "UB_208_212":  {"seat_type": "Reserved",          "level": "200",         "view_angle": "Sideline",  "sections": "208–212"},
-    "WC_C223_C231":{"seat_type": "Club",              "level": "Suites",      "view_angle": "End Zone",  "sections": "C223–C231"},
-    "UC_323_334":  {"seat_type": "Reserved",          "level": "300",         "view_angle": "Midfield",  "sections": "323–334"},
+    "LB_101_105":   {"seat_type": "Reserved",          "level": "100",         "view_angle": "Sideline",  "sections": "101–105"},
+    "LB_106_110":   {"seat_type": "Reserved",          "level": "100",         "view_angle": "Midfield",  "sections": "106–110"},
+    "LB_111_115":   {"seat_type": "Reserved",          "level": "100",         "view_angle": "Sideline",  "sections": "111–115"},
+    "LB_116_120":   {"seat_type": "Reserved",          "level": "100",         "view_angle": "End Zone",  "sections": "116–120"},
+    "LB_121_123":   {"seat_type": "Reserved",          "level": "100",         "view_angle": "Corner",    "sections": "121–123"},
+    "LB_133_135":   {"seat_type": "Reserved",          "level": "100",         "view_angle": "Corner",    "sections": "133–135"},
+    "LB_141":       {"seat_type": "Reserved",          "level": "100",         "view_angle": "Corner",    "sections": "141"},
+    "FC_C124_C132": {"seat_type": "Club",              "level": "Field Level", "view_angle": "Midfield",  "sections": "C124–C132"},
+    "GA_136_140":   {"seat_type": "General Admission", "level": "Field Level", "view_angle": "End Zone",  "sections": "136–140"},
+    "UB_202_207":   {"seat_type": "Reserved",          "level": "200",         "view_angle": "Sideline",  "sections": "202–207"},
+    "UB_208_212":   {"seat_type": "Reserved",          "level": "200",         "view_angle": "Sideline",  "sections": "208–212"},
+    "UB_235_238":   {"seat_type": "Reserved",          "level": "200",         "view_angle": "Sideline",  "sections": "235–238"},
+    "WC_C223_C231": {"seat_type": "Club",              "level": "Suites",      "view_angle": "Sideline",  "sections": "C223–C231"},
+    "UC_323_334":   {"seat_type": "Reserved",          "level": "300",         "view_angle": "Midfield",  "sections": "323–334"},
 }
 
 
@@ -243,10 +244,58 @@ SECTION_GROUP_COUNTS: dict[str, int] = {
     "LB_141":       1,   # east corner: 141
     "FC_C124_C132": 9,   # north field club: C124-C132
     "GA_136_140":   5,   # east GA sandbox: 136-140
-    "UB_202_207":   6,   # south upper: 201-206
-    "UB_208_212":   5,   # south upper: 207-211
+    "UB_202_207":   6,   # south upper: 202-207
+    "UB_208_212":   5,   # south upper: 208-212
+    "UB_235_238":   4,   # west upper: 235-238
     "WC_C223_C231": 9,   # west club/suites: C223-C231
     "UC_323_334":  12,   # north upper concourse: 323-334
+}
+
+# ── Hierarchical section groupings for expand/collapse table ──────────────────
+# Level 0 (most granular): individual sections (e.g., "101", "102")
+# Level 1: section groups (e.g., "101-105", "106-110") — current data grain
+# Level 2: by level (e.g., "Lower Bowl 100", "Upper Bowl 200")
+# Level 3: whole stadium
+SECTION_HIERARCHY = {
+    "Lower Bowl": {
+        "label": "Lower Bowl (100 Level)",
+        "groups": ["LB_101_105", "LB_106_110", "LB_111_115", "LB_116_120",
+                    "LB_121_123", "LB_133_135", "LB_141"],
+    },
+    "Field Level": {
+        "label": "Field Level & Club",
+        "groups": ["FC_C124_C132", "GA_136_140"],
+    },
+    "Upper Bowl": {
+        "label": "Upper Bowl (200 Level)",
+        "groups": ["UB_202_207", "UB_208_212", "UB_235_238"],
+    },
+    "Premium": {
+        "label": "Suites & West Club",
+        "groups": ["WC_C223_C231"],
+    },
+    "Upper Concourse": {
+        "label": "Upper Concourse (300 Level)",
+        "groups": ["UC_323_334"],
+    },
+}
+
+# Individual section names within each group (for expand-to-individual-section view)
+INDIVIDUAL_SECTIONS: dict[str, list[str]] = {
+    "LB_101_105":   ["101", "102", "103", "104", "105"],
+    "LB_106_110":   ["106", "107", "108", "109", "110"],
+    "LB_111_115":   ["111", "112", "113", "114", "115"],
+    "LB_116_120":   ["116", "117", "118", "119", "120"],
+    "LB_121_123":   ["121", "122", "123"],
+    "LB_133_135":   ["133", "134", "135"],
+    "LB_141":       ["141"],
+    "FC_C124_C132": ["C124", "C125", "C126", "C127", "C128", "C129", "C130", "C131", "C132"],
+    "GA_136_140":   ["136", "137", "138", "139", "140"],
+    "UB_202_207":   ["202", "203", "204", "205", "206", "207"],
+    "UB_208_212":   ["208", "209", "210", "211", "212"],
+    "UB_235_238":   ["235", "236", "237", "238"],
+    "WC_C223_C231": ["C223", "C224", "C225", "C226", "C227", "C228", "C229", "C230", "C231"],
+    "UC_323_334":   ["323", "324", "325", "326", "327", "328", "329", "330", "331", "332", "333", "334"],
 }
 
 
@@ -270,6 +319,29 @@ def _estimate_sth(grp: str, capacity: int) -> int:
     else:
         rate = 0.50
     return int(capacity * rate)
+
+
+def _estimate_resale(sth_sold: int, face_price: float, sold_price_avg: float) -> int:
+    """Estimate how many STH tickets are listed for resale on secondary market.
+
+    Higher secondary premium → more STH holders list tickets for resale.
+    Typical MLS resale rate: 8-25% of STH inventory per game.
+    """
+    if sth_sold <= 0 or face_price <= 0:
+        return 0
+    premium_pct = ((sold_price_avg - face_price) / face_price * 100) if sold_price_avg > face_price else 0
+    # Base resale rate 10%, scales up with premium
+    if premium_pct > 40:
+        rate = 0.22
+    elif premium_pct > 20:
+        rate = 0.18
+    elif premium_pct > 10:
+        rate = 0.14
+    elif premium_pct > 0:
+        rate = 0.10
+    else:
+        rate = 0.06   # even below face, some STH list to recover value
+    return int(sth_sold * rate)
 
 
 @st.cache_data(ttl=60)
@@ -436,11 +508,24 @@ def _build_stadium_svg(
     highlighted_groups: set | None = None,
     selected_groups: list | None = None,
 ) -> str:
-    """Generate a professional SVG seat map for Snapdragon Stadium with zoom/pan."""
+    """Generate a professional SVG seat map for Snapdragon Stadium with zoom/pan.
+
+    Layout follows real Snapdragon Stadium geometry:
+    - SOUTH: Lower bowl (100-level, sections 101-113) + Upper bowl (200-level, 202-212)
+    - WEST (left): Lower bowl (114-123), Club/Suites (C223-C231) on sideline, Upper (235-238)
+    - NORTH: Field Club (C124-C132) + Upper Concourse (323-334)
+    - EAST (right): Corner sections (133-135), Supporters GA (136-140), Corner (141)
+
+    Seat dots are color-coded by ticket status:
+    - Blue: Season ticket holder seat
+    - Amber: Single-game ticket sold
+    - Magenta: Listed for resale on secondary market
+    - Green: Available / unsold
+    """
     import math
 
-    W, H = 1100, 790
-    CX, CY = 550, 385   # pitch centre (raised so south stand fits)
+    W, H = 1100, 850
+    CX, CY = 550, 400   # pitch centre (raised so south stand fits)
     SC = 175             # pixels per data unit
 
     def px(dx, dy):
@@ -450,16 +535,39 @@ def _build_stadium_svg(
         return " ".join(f"{CX+x*SC:.1f},{CY-y*SC:.1f}" for x, y in pairs)
 
     # ── Stand boundaries (data units) ─────────────────────────────────────
-    PX0, PX1 = -1.05,  1.05   # pitch east-west edges
-    PY0, PY1 = -0.68,  0.68   # pitch north-south edges
+    PX0, PX1 = -1.05,  1.05   # pitch west-east edges
+    PY0, PY1 = -0.68,  0.68   # pitch south-north edges
 
-    S_IN,  S_LL,  S_UB = PY0, -1.22, -1.72   # south tiers — deeper to show 3-level asymmetry
-    N_IN,  N_FC,  N_UC = PY1,  1.14,  1.50   # north tiers — shallower (2-level)
+    S_IN,  S_LL,  S_UB = PY0, -1.22, -1.72   # south tiers (3-level)
+    N_IN,  N_FC,  N_UC = PY1,  1.14,  1.50   # north tiers (2-level)
     S_XSPAN = 1.15   # south/north half-width
 
-    W_IN,  W_LL,  W_CL = PX0, -1.55, -1.92   # west tiers
-    E_IN,  E_OUT        = PX1,  1.52           # east end
-    G_YSPAN = PY1                              # ±0.68 — goal-end y half-height matches pitch height
+    # West sideline: lower bowl → club/suites → upper 200-level
+    W_IN  = PX0              # -1.05 — pitch edge
+    W_LL  = -1.55            # lower bowl outer edge
+    W_CL  = -1.92            # club level outer edge
+    W_UB  = -2.12            # 200-level upper outer edge (behind club)
+
+    # East goal end
+    E_IN   = PX1             #  1.05 — pitch edge
+    E_OUT  = 1.52            # east end outer edge
+
+    G_YSPAN = PY1            # ±0.68 — goal-end y half-height
+
+    # ── Seat status helpers ───────────────────────────────────────────────
+    # For each section group, compute per-section-instance status breakdown
+    def _seat_status_for_section(grp):
+        """Return (sth_count, sg_count, resale_count, avail_count) for one
+        individual section within the group."""
+        d = section_data.get(grp, {})
+        if not d:
+            return (0, 0, 0, 0)
+        n_secs = SECTION_GROUP_COUNTS.get(grp, 1)
+        sth   = max(0, round(d.get("sth_sold", 0) / n_secs))
+        sg    = max(0, round(d.get("sg_sold", 0) / n_secs))
+        res   = max(0, round(d.get("resale", 0) / n_secs))
+        avail = max(0, round(d.get("available", 0) / n_secs))
+        return (sth, sg, res, avail)
 
     # ── Color helpers ──────────────────────────────────────────────────────
     def sec_fill(grp):
@@ -475,7 +583,7 @@ def _build_stadium_svg(
 
     def sec_opacity(grp):
         if highlighted_groups is not None and grp not in highlighted_groups:
-            return 0.14   # dimmed — not in active filter
+            return 0.14
         d = section_data.get(grp, {})
         if not d: return 0.55
         ap = abs(d.get("price_change_pct", 0))
@@ -485,16 +593,20 @@ def _build_stadium_svg(
         return 0.65
 
     def hover_txt(lbl, grp):
-        """Minimal tooltip — just enough to identify the section."""
         meta = SECTION_METADATA.get(grp, {})
+        d = section_data.get(grp, {})
         tip  = f"Sec {lbl}"
         if meta:
-            tip += f"  ·  {meta.get('seat_type', '')}  ·  {meta.get('level', '')}  ·  {meta.get('view_angle', '')}"
-        d = section_data.get(grp, {})
+            tip += f"  |  {meta.get('seat_type', '')}  |  {meta.get('level', '')}  |  {meta.get('view_angle', '')}"
         if d:
+            n_secs = SECTION_GROUP_COUNTS.get(grp, 1)
+            sth  = round(d.get("sth_sold", 0) / n_secs)
+            sg   = round(d.get("sg_sold", 0) / n_secs)
+            res  = round(d.get("resale", 0) / n_secs)
+            avl  = round(d.get("available", 0) / n_secs)
             pchg = d.get("price_change_pct", 0)
             sign = "+" if pchg > 0 else ""
-            tip += f"  ·  {sign}{pchg:.1f}%"
+            tip += f"  |  STH:{sth}  SG:{sg}  Resale:{res}  Avail:{avl}  |  {sign}{pchg:.1f}%"
         return tip
 
     # ── Row lines ──────────────────────────────────────────────────────────
@@ -514,7 +626,7 @@ def _build_stadium_svg(
             out.append(f'<line x1="{ax:.1f}" y1="{ay:.1f}" x2="{bx:.1f}" y2="{by:.1f}" stroke="{c}" stroke-width="1.0"/>')
         return "\n  ".join(out)
 
-    # ── Section builder ────────────────────────────────────────────────────
+    # ── Section builder with seat-status-colored dots ─────────────────────
     sections_svg = []
 
     def add_sec(lbl, grp, x0, x1, y0, y1, rows="h", nr=16):
@@ -533,24 +645,34 @@ def _build_stadium_svg(
                     f'dominant-baseline="middle" fill="rgba(255,255,255,0.88)" '
                     f'font-size="{fsz}" font-family="Arial" font-weight="600" '
                     f'pointer-events="none">{ptxt}</text>')
-        # ── Seat dots ─────────────────────────────────────────────────────────
-        # Derive per-section capacity from pipeline group capacity ÷ section count.
-        # Lay out exactly that many dots in a grid whose aspect ratio matches the
-        # physical section proportions, so dot spacing is uniform and realistic.
+
+        # ── Seat dots with status coloring ────────────────────────────────
         _grp_cap = section_data.get(grp, {}).get("capacity", 0)
         _n_secs  = SECTION_GROUP_COUNTS.get(grp, 1)
         _cap     = max(0, round(_grp_cap / _n_secs))
+
+        # Status breakdown for this individual section
+        _sth, _sg, _res, _avl = _seat_status_for_section(grp)
+        # Ensure total matches capacity (adjust available to fill)
+        _total_status = _sth + _sg + _res + _avl
+        if _total_status < _cap:
+            _avl += (_cap - _total_status)
+        elif _total_status > _cap:
+            _avl = max(0, _cap - _sth - _sg - _res)
+
         _dots: list[str] = []
         if _cap > 0:
             import math as _m
             _wpx = abs(x1 - x0) * SC
             _hpx = abs(y1 - y0) * SC
+
+            # Build ordered seat coordinates
+            coords = []
             if rows == "h":
-                # Rows run horizontally (across width); each row has spr seats
                 _spr  = max(2, round(_m.sqrt(_cap * _wpx / max(1, _hpx))))
                 _nr_d = _m.ceil(_cap / _spr)
-                _rs_u = abs(y1 - y0) / (_nr_d + 1)   # row step (data units)
-                _ss_u = abs(x1 - x0) / (_spr  + 1)   # seat step (data units)
+                _rs_u = abs(y1 - y0) / (_nr_d + 1)
+                _ss_u = abs(x1 - x0) / (_spr  + 1)
                 _dr   = max(0.7, min(2.2, min(_rs_u, _ss_u) * SC * 0.40))
                 _ys   = 1 if y1 > y0 else -1
                 _xs   = 1 if x1 > x0 else -1
@@ -562,9 +684,9 @@ def _build_stadium_svg(
                     for _si in range(1, _row_n + 1):
                         _sx = x0 + _si * _ss_u * _xs
                         _cx, _cy = px(_sx, _ry)
-                        _dots.append(f'<circle class="seat" cx="{_cx:.1f}" cy="{_cy:.1f}" r="{_dr:.2f}"/>')
+                        coords.append((_cx, _cy, _ri, _si))
                         _n += 1
-            else:  # "v" — columns run vertically; each column has spc seats
+            else:
                 _spc  = max(2, round(_m.sqrt(_cap * _hpx / max(1, _wpx))))
                 _nc_d = _m.ceil(_cap / _spc)
                 _cs_u = abs(x1 - x0) / (_nc_d + 1)
@@ -580,8 +702,24 @@ def _build_stadium_svg(
                     for _si in range(1, _col_n + 1):
                         _sy = y0 + _si * _ss_u * _ys
                         _cx, _cy = px(_cxd, _sy)
-                        _dots.append(f'<circle class="seat" cx="{_cx:.1f}" cy="{_cy:.1f}" r="{_dr:.2f}"/>')
+                        coords.append((_cx, _cy, _si, _ci))
                         _n += 1
+
+            # Assign status class to each dot
+            # Order: STH seats first (best seats, center), then SG, resale, available
+            for idx, (cx_, cy_, row_, seat_) in enumerate(coords):
+                if idx < _sth:
+                    cls = "seat seat-sth"
+                elif idx < _sth + _sg:
+                    cls = "seat seat-sg"
+                elif idx < _sth + _sg + _res:
+                    cls = "seat seat-resale"
+                else:
+                    cls = "seat seat-avail"
+                _dots.append(
+                    f'<circle class="{cls}" cx="{cx_:.1f}" cy="{cy_:.1f}" r="{_dr:.2f}"'
+                    f' data-row="{row_}" data-seat="{seat_}"/>'
+                )
         _dsv = "\n  ".join(_dots)
         sections_svg.append(
             f'<g class="sec" data-tip="{tip}" data-grp="{grp}" style="opacity:{opac}">\n'
@@ -600,10 +738,10 @@ def _build_stadium_svg(
         add_sec(_sl[i], _sg[i], _sb[i+1], _sb[i], S_IN, S_LL, rows="h", nr=22)
 
     # ═══════════════════════════════════════════════════════════════════════
-    # SOUTH 200-LEVEL — 11 sections (201-211), east → west
+    # SOUTH 200-LEVEL — 11 sections (202-212), east → west
     # ═══════════════════════════════════════════════════════════════════════
     _ub = [S_XSPAN - i*(2*S_XSPAN/11) for i in range(12)]
-    _ul = [str(201+i) for i in range(11)]
+    _ul = [str(202+i) for i in range(11)]
     _ug = ["UB_202_207"]*6 + ["UB_208_212"]*5
     for i in range(11):
         add_sec(_ul[i], _ug[i], _ub[i+1], _ub[i], S_LL, S_UB, rows="h", nr=14)
@@ -618,15 +756,23 @@ def _build_stadium_svg(
         add_sec(_wl[i], _wg[i], W_LL, W_IN, _wb[i], _wb[i+1], rows="v", nr=14)
 
     # ═══════════════════════════════════════════════════════════════════════
-    # WEST CLUB LEVEL — 9 sections (C223-C231), south → north
+    # WEST CLUB / SUITES — 9 sections (C223-C231), south → north
+    # Positioned on the WEST SIDELINE (behind lower bowl), not end zone
     # ═══════════════════════════════════════════════════════════════════════
     _wcb = [-G_YSPAN + i*(2*G_YSPAN/9) for i in range(10)]
     for i in range(9):
         add_sec(f"C{223+i}", "WC_C223_C231", W_CL, W_LL, _wcb[i], _wcb[i+1], rows="v", nr=10)
 
     # ═══════════════════════════════════════════════════════════════════════
+    # WEST UPPER 200-LEVEL — 4 sections (235-238), south → north
+    # Behind the club/suites on the west sideline
+    # ═══════════════════════════════════════════════════════════════════════
+    _wub = [-G_YSPAN + i*(2*G_YSPAN/4) for i in range(5)]
+    for i in range(4):
+        add_sec(str(235+i), "UB_235_238", W_UB, W_CL, _wub[i], _wub[i+1], rows="v", nr=12)
+
+    # ═══════════════════════════════════════════════════════════════════════
     # NORTH FIELD CLUB — 9 sections (C124-C132), west → east
-    # Span ±S_XSPAN (same as UC) so the north stand has no stepped corners
     # ═══════════════════════════════════════════════════════════════════════
     _fb = [-S_XSPAN + i*(2*S_XSPAN/9) for i in range(10)]
     for i in range(9):
@@ -640,17 +786,17 @@ def _build_stadium_svg(
         add_sec(str(323+i), "UC_323_334", _ucb[i], _ucb[i+1], N_FC, N_UC, rows="h", nr=12)
 
     # ═══════════════════════════════════════════════════════════════════════
-    # EAST GOAL END — individual sections, x: E_IN to E_OUT
+    # EAST GOAL END — Supporters section behind the goal
     # NE corner:  133, 134, 135  (3 strips, north → south)
-    # Sandbox GA: 136–140        (5 strips, north → south)
+    # Supporters GA: 136–140     (5 strips, behind goal, north → south)
     # SE corner:  141
     # ═══════════════════════════════════════════════════════════════════════
-    E_TOP = 0.24; E_BOT = -0.24   # zone boundaries within east end
+    E_TOP = 0.24; E_BOT = -0.24
     # NE corner sections 133-135
     _ne_y = [G_YSPAN - i * (G_YSPAN - E_TOP) / 3 for i in range(4)]
     for i, sn in enumerate(["133", "134", "135"]):
         add_sec(sn, "LB_133_135", E_IN, E_OUT, _ne_y[i + 1], _ne_y[i], rows="v", nr=10)
-    # Sandbox GA sections 136-140
+    # Supporters GA sections 136-140 (standing room behind east goal)
     _ga_y = [E_TOP - i * (E_TOP - E_BOT) / 5 for i in range(6)]
     for i in range(5):
         add_sec(str(136 + i), "GA_136_140", E_IN, E_OUT, _ga_y[i + 1], _ga_y[i], rows="v", nr=8)
@@ -687,7 +833,7 @@ def _build_stadium_svg(
     ]
 
     # ── Bowl background ────────────────────────────────────────────────────
-    bx0, by0 = px(-2.05, 1.68); bx1, by1 = px(2.05, -1.88)
+    bx0, by0 = px(-2.25, 1.68); bx1, by1 = px(2.05, -1.88)
 
     # ── Assemble SVG ──────────────────────────────────────────────────────
     svg = f"""<svg id="stadiumSvg" width="{W}" height="{H}" viewBox="0 0 {W} {H}"
@@ -701,11 +847,18 @@ def _build_stadium_svg(
     .sec:hover .sec-fill {{ filter: brightness(1.4); }}
     .sec.selected .sec-fill {{ stroke:#FFD700 !important; stroke-width:2.5 !important; }}
     #ttbox {{ pointer-events:none; filter:drop-shadow(0 2px 5px rgba(0,0,0,0.7)); }}
-    .seat {{ display:none; fill:rgba(185,205,245,0.88); stroke:rgba(255,255,255,0.25); stroke-width:0.4; }}
+    /* Seat dots — hidden until zoomed in */
+    .seat {{ display:none; stroke:rgba(0,0,0,0.35); stroke-width:0.3; }}
+    .seat-sth    {{ fill:#3B82F6; }}  /* Season ticket — blue */
+    .seat-sg     {{ fill:#F59E0B; }}  /* Single game sold — amber */
+    .seat-resale {{ fill:#EC4899; }}  /* Listed for resale — magenta */
+    .seat-avail  {{ fill:#10B981; }}  /* Available — green */
     #stadiumSvg.zoomed .seat {{ display:block; }}
     #stadiumSvg.zoomed .sec-rows {{ display:none; }}
-    #stadiumSvg.zoomed .sec-fill {{ opacity:0.13 !important; filter:none !important; }}
-    #stadiumSvg.zoomed .sec:hover .sec-fill {{ opacity:0.25 !important; }}
+    #stadiumSvg.zoomed .sec-fill {{ opacity:0.10 !important; filter:none !important; }}
+    #stadiumSvg.zoomed .sec:hover .sec-fill {{ opacity:0.20 !important; }}
+    /* Seat tooltip on hover (row/seat info) */
+    .seat:hover {{ stroke:#fff; stroke-width:1.0; filter:brightness(1.3); cursor:pointer; }}
     #resetBtn rect {{ fill:rgba(20,30,55,0.92); transition:fill 0.15s; }}
     #resetBtn:hover rect {{ fill:rgba(50,65,100,0.95); cursor:pointer; }}
     #minimap {{ pointer-events:none; opacity:1; }}
@@ -746,8 +899,8 @@ def _build_stadium_svg(
         font-family="Arial" pointer-events="none">&#8635; Reset View</text>
 </g>
 
-<!-- Minimap (fixed, bottom-right) -->
-<g id="minimap" transform="translate({W-174},{H-152})">
+<!-- Minimap (fixed, top-right — always in view regardless of screen height) -->
+<g id="minimap" transform="translate({W-174},14)">
   <!-- Outer frame -->
   <rect x="0" y="0" width="162" height="142" rx="6"
         fill="#111827" stroke="#60A5FA" stroke-width="1.5"/>
@@ -779,6 +932,10 @@ def _build_stadium_svg(
   <rect x="{(CX+W_CL*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
         width="{abs(W_LL-W_CL)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
         fill="#4a5880"/>
+  <!-- West upper 200-level -->
+  <rect x="{(CX+W_UB*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
+        width="{abs(W_CL-W_UB)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
+        fill="#3d4d70"/>
   <!-- East end -->
   <rect x="{(CX+E_IN*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
         width="{abs(E_OUT-E_IN)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
@@ -799,9 +956,17 @@ def _build_stadium_svg(
         fill="rgba(96,165,250,0.12)" stroke="#60A5FA" stroke-width="2" rx="3"/>
 </g>
 
+<!-- Seat status legend (bottom-left) -->
+<g id="seatLegend" transform="translate(12,{H-42})" pointer-events="none">
+  <rect x="0" y="0" width="380" height="36" rx="5" fill="rgba(8,10,25,0.85)" stroke="#2b2f4a" stroke-width="1"/>
+  <circle cx="14" cy="18" r="5" fill="#3B82F6"/><text x="24" y="22" fill="#D1D5DB" font-size="10" font-family="Arial">Season Ticket</text>
+  <circle cx="110" cy="18" r="5" fill="#F59E0B"/><text x="120" y="22" fill="#D1D5DB" font-size="10" font-family="Arial">Single Game</text>
+  <circle cx="198" cy="18" r="5" fill="#EC4899"/><text x="208" y="22" fill="#D1D5DB" font-size="10" font-family="Arial">Resale Listed</text>
+  <circle cx="290" cy="18" r="5" fill="#10B981"/><text x="300" y="22" fill="#D1D5DB" font-size="10" font-family="Arial">Available</text>
+</g>
 <!-- Zoom hint -->
-<text x="{W-8}" y="{H-5}" text-anchor="end" fill="#374151" font-size="9"
-      font-family="Arial" pointer-events="none">scroll=zoom · drag=pan</text>
+<text x="12" y="{H-2}" text-anchor="start" fill="#4B5563" font-size="9"
+      font-family="Arial" pointer-events="none">Click section to select  ·  Scroll to zoom  ·  Drag to pan  ·  Zoom in to see seat dots</text>
 
 <script>
 (function(){{
@@ -865,9 +1030,41 @@ def _build_stadium_svg(
   window.addEventListener('mouseup',function(){{ drag=false; }});
   svg.addEventListener('dblclick',function(){{ zoom=1;panX=0;panY=0;setT(); }});
 
-  // Tooltip
+  // Tooltip — section hover + individual seat hover when zoomed
+  var statusLabels = {{'seat-sth':'Season Ticket','seat-sg':'Single Game','seat-resale':'Resale Listed','seat-avail':'Available'}};
+
+  function showTip(text, e) {{
+    ttt.textContent = text;
+    ttb.setAttribute('visibility','visible');
+    var rect=svg.getBoundingClientRect();
+    var sc=svg.viewBox.baseVal.width/rect.width;
+    var tx=(e.clientX-rect.left)*sc;
+    var ty=(e.clientY-rect.top)*sc;
+    var ttW=ttr.getAttribute('width')||200;
+    tx = Math.min(tx+14, W-Number(ttW)-4);
+    ty = Math.max(ty-28, 4);
+    ttt.setAttribute('x',tx+7); ttt.setAttribute('y',ty+16);
+    var bb=ttt.getBBox(),p=7;
+    ttr.setAttribute('x',bb.x-p); ttr.setAttribute('y',bb.y-p);
+    ttr.setAttribute('width',bb.width+p*2); ttr.setAttribute('height',bb.height+p*2);
+  }}
+
+  // Seat-level tooltip (when zoomed)
+  svg.addEventListener('mouseover', function(e) {{
+    var el = e.target;
+    if (!el.classList.contains('seat') || zoom <= 3.2) return;
+    var row = el.getAttribute('data-row') || '?';
+    var seat = el.getAttribute('data-seat') || '?';
+    var cls = el.className.baseVal || '';
+    var status = 'Unknown';
+    for (var k in statusLabels) {{ if (cls.indexOf(k) >= 0) {{ status = statusLabels[k]; break; }} }}
+    var secEl = el.closest('.sec');
+    var secName = secEl ? (secEl.getAttribute('data-tip') || '').split('|')[0].trim() : '';
+    showTip(secName + '  |  Row ' + row + '  Seat ' + seat + '  |  ' + status, e);
+  }});
+
   svg.querySelectorAll('.sec').forEach(function(s){{
-    s.addEventListener('mouseenter',function(){{
+    s.addEventListener('mouseenter',function(e){{
       ttt.textContent=s.getAttribute('data-tip');
       ttb.setAttribute('visibility','visible');
       var bb=ttt.getBBox(),p=7;
@@ -875,18 +1072,9 @@ def _build_stadium_svg(
       ttr.setAttribute('width',bb.width+p*2); ttr.setAttribute('height',bb.height+p*2);
     }});
     s.addEventListener('mousemove',function(e){{
-      var rect=svg.getBoundingClientRect();
-      var sc=svg.viewBox.baseVal.width/rect.width;
-      var tx=(e.clientX-rect.left)*sc;
-      var ty=(e.clientY-rect.top)*sc;
-      // Keep tooltip inside SVG bounds
-      var ttW=ttr.getAttribute('width')||200;
-      tx = Math.min(tx+14, W-Number(ttW)-4);
-      ty = Math.max(ty-28, 4);
-      ttt.setAttribute('x',tx+7); ttt.setAttribute('y',ty+16);
-      var bb=ttt.getBBox(),p=7;
-      ttr.setAttribute('x',bb.x-p); ttr.setAttribute('y',bb.y-p);
-      ttr.setAttribute('width',bb.width+p*2); ttr.setAttribute('height',bb.height+p*2);
+      // If hovering a seat dot, the seat handler above takes priority
+      if (e.target.classList.contains('seat') && zoom > 3.2) return;
+      showTip(s.getAttribute('data-tip'), e);
     }});
     s.addEventListener('mouseleave',function(){{ ttb.setAttribute('visibility','hidden'); }});
     s.addEventListener('click',function(e){{
@@ -1005,9 +1193,9 @@ def render_seat_map():
                     "market_health":       r["market_health"],
                     "shap_explanation":    f"Season average across {_n_games} home games",
                     "scenarios": {
-                        "conservative": {"price": face*(1+pct*0.5/100), "price_change_pct": pct*0.5,  "expected_sell_through": float(r["target_demand_index"])},
-                        "balanced":     {"price": face*(1+pct/100),     "price_change_pct": pct,       "expected_sell_through": float(r["target_demand_index"])},
-                        "aggressive":   {"price": face*(1+pct*1.5/100), "price_change_pct": pct*1.5,  "expected_sell_through": float(r["target_demand_index"])*0.92},
+                        "conservative": {"price": face*(1+pct*0.5/100), "price_change_pct": pct*0.5,  "expected_sell_through": float(r["target_demand_index"]) * 100},
+                        "balanced":     {"price": face*(1+pct/100),     "price_change_pct": pct,       "expected_sell_through": float(r["target_demand_index"]) * 100},
+                        "aggressive":   {"price": face*(1+pct*1.5/100), "price_change_pct": pct*1.5,  "expected_sell_through": float(r["target_demand_index"]) * 100 * 0.92},
                     },
                 })
     else:
@@ -1033,27 +1221,46 @@ def render_seat_map():
         max_dt = home_games["date_dt"].max()
 
         with st.expander("🔍 Filter Games", expanded=False):
-            # Conference first — constrains Opponent options
+            # ── Cross-constrained filters: each dropdown only shows values
+            #    that would produce at least one game given the OTHER filters. ──
             _cur_confs = st.session_state.get("game_confs", [])
             _cur_opps  = st.session_state.get("game_opps",  [])
             _cur_comps = st.session_state.get("game_comps", [])
+
+            # Pool excluding each filter so we can compute available options
+            def _pool(excl: str) -> pd.DataFrame:
+                """Return games matching all current filters EXCEPT `excl`."""
+                pool = home_games.copy()
+                if excl != "conf" and _cur_confs:
+                    pool = pool[pool["conference"].isin(_cur_confs)]
+                if excl != "opp" and _cur_opps:
+                    pool = pool[pool["opponent"].isin(_cur_opps)]
+                if excl != "comp" and _cur_comps:
+                    pool = pool[pool["competition"].isin(_cur_comps)]
+                return pool
+
+            _avail_confs = sorted(_pool("conf")["conference"].dropna().unique().tolist())
+            _avail_opps  = sorted(_pool("opp")["opponent"].dropna().unique().tolist())
+            _avail_comps = sorted(_pool("comp")["competition"].dropna().unique().tolist())
+
+            # Prune stale selections that are no longer reachable
+            if "game_confs" in st.session_state:
+                st.session_state["game_confs"] = [v for v in st.session_state["game_confs"] if v in _avail_confs]
+            if "game_opps" in st.session_state:
+                st.session_state["game_opps"] = [v for v in st.session_state["game_opps"] if v in _avail_opps]
+            if "game_comps" in st.session_state:
+                st.session_state["game_comps"] = [v for v in st.session_state["game_comps"] if v in _avail_comps]
 
             gc1, gc2, gc3 = st.columns([1, 1, 1])
             with gc1:
                 _cb1, _cb2 = st.columns([5, 1])
                 with _cb1:
-                    sel_confs = st.multiselect("Conference", all_confs, key="game_confs")
+                    sel_confs = st.multiselect("Conference", _avail_confs, key="game_confs")
                 with _cb2:
                     st.write("")
                     if st.button("✕", key="clr_conf", help="Clear conference"):
                         st.session_state["game_confs"] = []; st.rerun()
             with gc2:
-                # Opponent options constrained by selected conferences
-                _avail_opps = sorted([o for o in all_opps
-                                       if not sel_confs or MLS_TEAMS.get(o, {}).get("conf") in sel_confs])
-                # Drop selected opponents no longer available
-                if "game_opps" in st.session_state:
-                    st.session_state["game_opps"] = [v for v in st.session_state["game_opps"] if v in _avail_opps]
                 _cb1, _cb2 = st.columns([5, 1])
                 with _cb1:
                     sel_opps = st.multiselect("Opponent", _avail_opps, key="game_opps")
@@ -1064,7 +1271,7 @@ def render_seat_map():
             with gc3:
                 _cb1, _cb2 = st.columns([5, 1])
                 with _cb1:
-                    sel_comps = st.multiselect("Competition", all_comps, key="game_comps")
+                    sel_comps = st.multiselect("Competition", _avail_comps, key="game_comps")
                 with _cb2:
                     st.write("")
                     if st.button("✕", key="clr_comp", help="Clear competition"):
@@ -1251,7 +1458,11 @@ def render_seat_map():
             continue
         face = float(rec.get("face_price", 60) or 60)
         cap  = int(rec.get("capacity", 2000) or 2000)
-        st_  = float(scen.get("expected_sell_through", rec.get("target_demand_index", 80)) or 80)
+        _raw_st = scen.get("expected_sell_through") or rec.get("target_demand_index") or 80
+        st_ = float(_raw_st)
+        # target_demand_index is 0-1 fraction; expected_sell_through is 0-100 pct
+        if st_ <= 1.0:
+            st_ *= 100
         sold_avg = float(rec.get("sold_price_avg", face * 1.15) or face * 1.15)
         scen_p   = float(scen.get("price", face) or face)
         pchg     = float(scen.get("price_change_pct", 0) or 0)
@@ -1260,6 +1471,7 @@ def render_seat_map():
         sth_sold   = min(sth_sold, total_sold)
         sg_sold    = max(0, total_sold - sth_sold)
         available  = max(0, cap - total_sold)
+        resale     = _estimate_resale(sth_sold, face, sold_avg)
         ticket_rev = sth_sold * face + sg_sold * sold_avg
         potential_rev = available * scen_p
         avg_price  = ticket_rev / total_sold if total_sold > 0 else face
@@ -1276,6 +1488,7 @@ def render_seat_map():
             "sold_price_avg":  sold_avg,
             "sth_sold":        sth_sold,
             "sg_sold":         sg_sold,
+            "resale":          resale,
             "available":       available,
             "ticket_rev":      ticket_rev,
             "potential_rev":   potential_rev,
@@ -1290,14 +1503,28 @@ def render_seat_map():
 
     # ── Legend ────────────────────────────────────────────────────────────────
     legend_html = """
-<div style="display:flex;align-items:center;gap:10px;margin:8px 0 6px;flex-wrap:wrap">
+<div style="display:flex;align-items:center;gap:16px;margin:8px 0 6px;flex-wrap:wrap">
   <span style="font-size:11px;color:#9CA3AF">Raise price</span>
-  <div style="height:10px;width:140px;border-radius:3px;flex-shrink:0;
+  <div style="height:10px;width:120px;border-radius:3px;flex-shrink:0;
     background:linear-gradient(to right,#1E3A8A,#60A5FA,#E8EDF5,#FCA5A5,#DC2626);
     border:1px solid rgba(255,255,255,0.1)"></div>
   <span style="font-size:11px;color:#9CA3AF">Lower price</span>
-  <span style="font-size:11px;color:#4B5563;margin-left:8px">
-    Click section to select &nbsp;·&nbsp; Scroll to zoom &nbsp;·&nbsp; Drag to pan &nbsp;·&nbsp; Zoom in to see seat dots
+  <span style="font-size:11px;color:#4B5563">|</span>
+  <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px">
+    <span style="width:8px;height:8px;border-radius:50%;background:#3B82F6;display:inline-block"></span>
+    <span style="color:#9CA3AF">Season Ticket</span>
+  </span>
+  <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px">
+    <span style="width:8px;height:8px;border-radius:50%;background:#F59E0B;display:inline-block"></span>
+    <span style="color:#9CA3AF">Single Game</span>
+  </span>
+  <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px">
+    <span style="width:8px;height:8px;border-radius:50%;background:#EC4899;display:inline-block"></span>
+    <span style="color:#9CA3AF">Resale</span>
+  </span>
+  <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px">
+    <span style="width:8px;height:8px;border-radius:50%;background:#10B981;display:inline-block"></span>
+    <span style="color:#9CA3AF">Available</span>
   </span>
 </div>"""
     st.markdown(legend_html, unsafe_allow_html=True)
@@ -1390,11 +1617,13 @@ def _render_section_table(
     section_data: dict,
     highlighted_groups: set | None = None,
 ) -> None:
-    """Full-width section data table above the map.
+    """Full-width section data table with expand/collapse hierarchy.
 
-    Shows all sections (or filter-matched sections) when none are selected.
-    When sections are selected (via map click or table link), shows only those.
-    Section name links toggle selection via URL param 'secs'.
+    Default view: one row per individual section (101, 102, ...).
+    User can collapse (+/−) to:
+      − Section groups (101-105)
+      − By level (Lower Bowl, Upper Bowl, ...)
+      − Stadium total (single row)
     """
     # Determine which groups to display
     if selected_sections:
@@ -1409,12 +1638,32 @@ def _render_section_table(
         hint = "Click a section name or on the map to select — multiple selections allowed"
 
     st.caption(hint)
-
     if not show_grps:
         st.caption("No sections to display.")
         return
 
     cur_secs = list(selected_sections)
+
+    # ── Zoom level controls: −/+ to collapse/expand ──────────────────────
+    detail_level = st.session_state.get("tbl_detail", "individual")
+    zoom_order = ["total", "level", "group", "individual"]
+    cur_idx = zoom_order.index(detail_level) if detail_level in zoom_order else 3
+
+    btn_cols = st.columns([0.4, 0.4, 2, 1, 1, 1, 1])
+    with btn_cols[0]:
+        if st.button("−", key="tbl_zoom_out", help="Collapse / group rows"):
+            new_idx = max(0, cur_idx - 1)
+            st.session_state["tbl_detail"] = zoom_order[new_idx]
+            st.rerun()
+    with btn_cols[1]:
+        if st.button("+", key="tbl_zoom_in", help="Expand / show more detail"):
+            new_idx = min(len(zoom_order) - 1, cur_idx + 1)
+            st.session_state["tbl_detail"] = zoom_order[new_idx]
+            st.rerun()
+    label_map = {"total": "Stadium Total", "level": "By Level", "group": "Section Groups", "individual": "Individual Sections"}
+    with btn_cols[2]:
+        st.markdown(f'<span style="color:#9CA3AF;font-size:12px;line-height:38px">{label_map[detail_level]}</span>',
+                    unsafe_allow_html=True)
 
     def _toggle_href(grp: str) -> str:
         new = list(cur_secs)
@@ -1425,7 +1674,6 @@ def _render_section_table(
         return f"?secs={','.join(new)}" if new else "?"
 
     def _rec_badge(pchg: float) -> str:
-        """Colored ±% badge matching the map's blue→white→red gradient."""
         sign = "+" if pchg > 0 else ""
         val  = f"{sign}{pchg:.1f}%"
         if pchg > 15:  color = "#60A5FA"; weight = "700"
@@ -1435,42 +1683,154 @@ def _render_section_table(
         else:            color = "#9CA3AF"; weight = "400"
         return f'<span style="color:{color};font-weight:{weight};font-variant-numeric:tabular-nums">{val}</span>'
 
-    rows_html = []
-    for grp in show_grps:
-        d    = section_data.get(grp, {})
-        meta = SECTION_METADATA.get(grp, {})
-        is_sel = grp in selected_sections
+    def _data_row(sec_name, level_txt, view_txt, cap, sth, sg, resale, avail,
+                  avg_p, t_rev, p_rev, pchg, is_sel=False, grp="", indent=0, is_header=False):
+        """Build one HTML <tr> for the table."""
         row_bg = "background:rgba(96,165,250,0.08)" if is_sel else ""
-
-        cap    = d.get("capacity", 0)
-        sth    = d.get("sth_sold", 0)
-        sg     = d.get("sg_sold", 0)
-        avail  = d.get("available", 0)
-        avg_p  = d.get("avg_price", d.get("face_price", 0))
-        t_rev  = d.get("ticket_rev", 0)
-        p_rev  = d.get("potential_rev", 0)
-        pchg   = d.get("price_change_pct", 0)
-
-        sec_name  = meta.get("sections", grp)
-        link_col  = "#60A5FA" if is_sel else "#E5E7EB"
-        link_wt   = "700" if is_sel else "400"
+        if is_header:
+            row_bg = "background:rgba(30,40,70,0.5)"
+        link_col = "#60A5FA" if is_sel else ("#E5E7EB" if not is_header else "#93C5FD")
+        link_wt  = "700" if (is_sel or is_header) else "400"
         avail_col = "#10B981" if avail > 0 else "#6B7280"
-
-        rows_html.append(
+        pad_l = 12 + indent * 16
+        href = _toggle_href(grp) if grp else "#"
+        name_cell = (f'<a href="{href}" style="color:{link_col};font-weight:{link_wt};'
+                     f'text-decoration:none">{sec_name}</a>') if grp else (
+                     f'<span style="color:{link_col};font-weight:{link_wt}">{sec_name}</span>')
+        resale_col = "#EC4899" if resale > 0 else "#6B7280"
+        return (
             f'<tr style="{row_bg};border-bottom:1px solid #1f2937">'
-            f'<td style="padding:7px 12px;white-space:nowrap">'
-            f'<a href="{_toggle_href(grp)}" style="color:{link_col};font-weight:{link_wt};text-decoration:none">'
-            f'{sec_name}</a></td>'
-            f'<td style="padding:7px 10px;color:#9CA3AF">{meta.get("level","")}</td>'
-            f'<td style="padding:7px 10px;color:#9CA3AF">{meta.get("view_angle","")}</td>'
+            f'<td style="padding:7px {12}px 7px {pad_l}px;white-space:nowrap">{name_cell}</td>'
+            f'<td style="padding:7px 10px;color:#9CA3AF">{level_txt}</td>'
+            f'<td style="padding:7px 10px;color:#9CA3AF">{view_txt}</td>'
             f'<td style="padding:7px 10px;color:#D1D5DB;text-align:right">{cap:,}</td>'
-            f'<td style="padding:7px 10px;color:#D1D5DB;text-align:right">{sth:,}</td>'
-            f'<td style="padding:7px 10px;color:#D1D5DB;text-align:right">{sg:,}</td>'
+            f'<td style="padding:7px 10px;color:#3B82F6;text-align:right">{sth:,}</td>'
+            f'<td style="padding:7px 10px;color:#F59E0B;text-align:right">{sg:,}</td>'
+            f'<td style="padding:7px 10px;color:{resale_col};text-align:right">{resale:,}</td>'
             f'<td style="padding:7px 10px;color:{avail_col};text-align:right;font-weight:600">{avail:,}</td>'
             f'<td style="padding:7px 10px;color:#D1D5DB;text-align:right">${avg_p:,.0f}</td>'
             f'<td style="padding:7px 10px;color:#D1D5DB;text-align:right">${t_rev:,.0f}</td>'
             f'<td style="padding:7px 10px;color:#10B981;text-align:right;font-weight:600">${p_rev:,.0f}</td>'
             f'<td style="padding:7px 12px;text-align:right">{_rec_badge(pchg)}</td>'
+            f'</tr>'
+        )
+
+    def _agg_groups(grps: list) -> dict:
+        """Aggregate metrics across a list of section groups."""
+        t_cap = t_sth = t_sg = t_res = t_avl = 0
+        t_trev = t_prev = 0.0
+        w_pchg = 0.0
+        for g in grps:
+            d = section_data.get(g, {})
+            c = d.get("capacity", 0)
+            t_cap  += c
+            t_sth  += d.get("sth_sold", 0)
+            t_sg   += d.get("sg_sold", 0)
+            t_res  += d.get("resale", 0)
+            t_avl  += d.get("available", 0)
+            t_trev += d.get("ticket_rev", 0)
+            t_prev += d.get("potential_rev", 0)
+            w_pchg += d.get("price_change_pct", 0) * c
+        sold = t_sth + t_sg
+        return {
+            "cap": t_cap, "sth": t_sth, "sg": t_sg, "res": t_res, "avl": t_avl,
+            "avg_p": t_trev / sold if sold > 0 else 0,
+            "trev": t_trev, "prev": t_prev,
+            "pchg": w_pchg / t_cap if t_cap > 0 else 0,
+        }
+
+    rows_html = []
+
+    if detail_level == "total":
+        # ── Single stadium total row ─────────────────────────────────────
+        a = _agg_groups(show_grps)
+        rows_html.append(_data_row(
+            "Snapdragon Stadium", "All", "All",
+            a["cap"], a["sth"], a["sg"], a["res"], a["avl"],
+            a["avg_p"], a["trev"], a["prev"], a["pchg"],
+            is_header=True,
+        ))
+
+    elif detail_level == "level":
+        # ── Aggregated by level ──────────────────────────────────────────
+        for level_key, level_info in SECTION_HIERARCHY.items():
+            grps_in_level = [g for g in level_info["groups"] if g in show_grps]
+            if not grps_in_level:
+                continue
+            a = _agg_groups(grps_in_level)
+            rows_html.append(_data_row(
+                level_info["label"], "", "—",
+                a["cap"], a["sth"], a["sg"], a["res"], a["avl"],
+                a["avg_p"], a["trev"], a["prev"], a["pchg"],
+                is_header=True,
+            ))
+
+    elif detail_level == "group":
+        # ── Section groups (101-105, 106-110, ...) ───────────────────────
+        for grp in show_grps:
+            d = section_data.get(grp, {})
+            meta = SECTION_METADATA.get(grp, {})
+            is_sel = grp in selected_sections
+            rows_html.append(_data_row(
+                meta.get("sections", grp), meta.get("level", ""), meta.get("view_angle", ""),
+                d.get("capacity", 0), d.get("sth_sold", 0), d.get("sg_sold", 0),
+                d.get("resale", 0), d.get("available", 0),
+                d.get("avg_price", d.get("face_price", 0)),
+                d.get("ticket_rev", 0), d.get("potential_rev", 0),
+                d.get("price_change_pct", 0),
+                is_sel=is_sel, grp=grp,
+            ))
+
+    else:
+        # ── Default: individual sections (one row per section) ───────────
+        for grp in show_grps:
+            d = section_data.get(grp, {})
+            meta = SECTION_METADATA.get(grp, {})
+            is_sel = grp in selected_sections
+            n_secs = SECTION_GROUP_COUNTS.get(grp, 1)
+            indiv = INDIVIDUAL_SECTIONS.get(grp, [grp])
+
+            cap   = d.get("capacity", 0)
+            sth   = d.get("sth_sold", 0)
+            sg    = d.get("sg_sold", 0)
+            res   = d.get("resale", 0)
+            avl   = d.get("available", 0)
+            avg_p = d.get("avg_price", d.get("face_price", 0))
+            t_rev = d.get("ticket_rev", 0)
+            p_rev = d.get("potential_rev", 0)
+            pchg  = d.get("price_change_pct", 0)
+
+            for i, sec_name in enumerate(indiv):
+                s_cap  = cap // n_secs + (1 if i < cap % n_secs else 0)
+                s_sth  = sth // n_secs + (1 if i < sth % n_secs else 0)
+                s_sg   = sg  // n_secs + (1 if i < sg  % n_secs else 0)
+                s_res  = res // n_secs + (1 if i < res % n_secs else 0)
+                s_avl  = avl // n_secs + (1 if i < avl % n_secs else 0)
+                s_trev = t_rev / n_secs
+                s_prev = p_rev / n_secs
+                rows_html.append(_data_row(
+                    sec_name, meta.get("level", ""), meta.get("view_angle", ""),
+                    s_cap, s_sth, s_sg, s_res, s_avl,
+                    avg_p, s_trev, s_prev, pchg,
+                    is_sel=is_sel, grp=grp,
+                ))
+
+    # ── Totals row (always shown unless already at total level) ──────────
+    if detail_level != "total":
+        a = _agg_groups(show_grps)
+        rows_html.append(
+            f'<tr style="background:#0f1729;border-top:2px solid #374151;font-weight:700">'
+            f'<td style="padding:9px 12px;color:#E5E7EB">TOTAL</td>'
+            f'<td></td><td></td>'
+            f'<td style="padding:9px 10px;color:#E5E7EB;text-align:right">{a["cap"]:,}</td>'
+            f'<td style="padding:9px 10px;color:#3B82F6;text-align:right">{a["sth"]:,}</td>'
+            f'<td style="padding:9px 10px;color:#F59E0B;text-align:right">{a["sg"]:,}</td>'
+            f'<td style="padding:9px 10px;color:#EC4899;text-align:right">{a["res"]:,}</td>'
+            f'<td style="padding:9px 10px;color:#10B981;text-align:right">{a["avl"]:,}</td>'
+            f'<td style="padding:9px 10px;color:#E5E7EB;text-align:right">${a["avg_p"]:,.0f}</td>'
+            f'<td style="padding:9px 10px;color:#E5E7EB;text-align:right">${a["trev"]:,.0f}</td>'
+            f'<td style="padding:9px 10px;color:#10B981;text-align:right">${a["prev"]:,.0f}</td>'
+            f'<td></td>'
             f'</tr>'
         )
 
@@ -1485,9 +1845,10 @@ def _render_section_table(
         f'<th style="{th};padding:9px 10px;text-align:left">Level</th>'
         f'<th style="{th};padding:9px 10px;text-align:left">View</th>'
         f'<th style="{th};padding:9px 10px;text-align:right">Capacity</th>'
-        f'<th style="{th};padding:9px 10px;text-align:right">ST Sold</th>'
-        f'<th style="{th};padding:9px 10px;text-align:right">SG Sold</th>'
-        f'<th style="{th};padding:9px 10px;text-align:right">Available</th>'
+        f'<th style="{th};padding:9px 10px;text-align:right;color:#3B82F6">ST Sold</th>'
+        f'<th style="{th};padding:9px 10px;text-align:right;color:#F59E0B">SG Sold</th>'
+        f'<th style="{th};padding:9px 10px;text-align:right;color:#EC4899">Resale</th>'
+        f'<th style="{th};padding:9px 10px;text-align:right;color:#10B981">Available</th>'
         f'<th style="{th};padding:9px 10px;text-align:right">Avg Price</th>'
         f'<th style="{th};padding:9px 10px;text-align:right">Ticket Revenue</th>'
         f'<th style="{th};padding:9px 10px;text-align:right">Potential Rev</th>'

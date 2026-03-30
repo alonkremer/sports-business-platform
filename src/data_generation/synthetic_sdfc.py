@@ -61,20 +61,20 @@ SNAPDRAGON_CAPACITY = 35_000   # Includes ~2,000 GA standing
 
 # Section tiers (mirrors ticketmaster_prices.py SECTION_TIERS)
 SECTION_TIERS = {
-    "GA_136_140":   {"tier": "supporters_ga",       "capacity": 2000,  "base_price": 28},
-    "LB_101_105":   {"tier": "lower_bowl_corner",   "capacity": 1200,  "base_price": 55},
-    "LB_106_110":   {"tier": "lower_bowl_goal",     "capacity": 1400,  "base_price": 55},
-    "LB_111_115":   {"tier": "lower_bowl_midfield", "capacity": 1600,  "base_price": 75},
-    "LB_116_120":   {"tier": "lower_bowl_midfield", "capacity": 1600,  "base_price": 75},
-    "LB_121_123":   {"tier": "lower_bowl_corner",   "capacity": 900,   "base_price": 60},
-    "LB_133_135":   {"tier": "lower_bowl_corner",   "capacity": 900,   "base_price": 60},
-    "LB_141":       {"tier": "lower_bowl_corner",   "capacity": 600,   "base_price": 55},
-    "FC_C124_C132": {"tier": "field_club",          "capacity": 1800,  "base_price": 180},
-    "UB_202_207":   {"tier": "upper_bowl",          "capacity": 3000,  "base_price": 42},
-    "UB_208_212":   {"tier": "upper_bowl",          "capacity": 2500,  "base_price": 42},
-    "UB_235_238":   {"tier": "upper_bowl",          "capacity": 2000,  "base_price": 38},
-    "WC_C223_C231": {"tier": "west_club",           "capacity": 1200,  "base_price": 140},
-    "UC_323_334":   {"tier": "upper_concourse",     "capacity": 6000,  "base_price": 32},
+    "GA_136_140":   {"tier": "supporters_ga",       "capacity": 2800,  "base_price": 28},
+    "LB_101_105":   {"tier": "lower_bowl_corner",   "capacity": 1900,  "base_price": 55},
+    "LB_106_110":   {"tier": "lower_bowl_goal",     "capacity": 2100,  "base_price": 55},
+    "LB_111_115":   {"tier": "lower_bowl_midfield", "capacity": 2400,  "base_price": 75},
+    "LB_116_120":   {"tier": "lower_bowl_midfield", "capacity": 2100,  "base_price": 75},
+    "LB_121_123":   {"tier": "lower_bowl_corner",   "capacity": 1200,  "base_price": 60},
+    "LB_133_135":   {"tier": "lower_bowl_corner",   "capacity": 1200,  "base_price": 60},
+    "LB_141":       {"tier": "lower_bowl_corner",   "capacity":  800,  "base_price": 55},
+    "FC_C124_C132": {"tier": "field_club",          "capacity": 2200,  "base_price": 180},
+    "UB_202_207":   {"tier": "upper_bowl",          "capacity": 3600,  "base_price": 42},
+    "UB_208_212":   {"tier": "upper_bowl",          "capacity": 3000,  "base_price": 42},
+    "UB_235_238":   {"tier": "upper_bowl",          "capacity": 2400,  "base_price": 38},
+    "WC_C223_C231": {"tier": "west_club",           "capacity": 1800,  "base_price": 140},
+    "UC_323_334":   {"tier": "upper_concourse",     "capacity": 7500,  "base_price": 32},
 }
 TOTAL_CAPACITY = sum(s["capacity"] for s in SECTION_TIERS.values())
 
