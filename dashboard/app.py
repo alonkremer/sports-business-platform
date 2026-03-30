@@ -218,7 +218,7 @@ SECTION_METADATA = {
     "LB_101_105":   {"seat_type": "Reserved",          "level": "100",         "view_angle": "Sideline",  "sections": "101–105"},
     "LB_106_110":   {"seat_type": "Reserved",          "level": "100",         "view_angle": "Midfield",  "sections": "106–110"},
     "LB_111_115":   {"seat_type": "Reserved",          "level": "100",         "view_angle": "Sideline",  "sections": "111–115"},
-    "LB_116_120":   {"seat_type": "Reserved",          "level": "100",         "view_angle": "End Zone",  "sections": "116–120"},
+    "LB_116_120":   {"seat_type": "Reserved",          "level": "100",         "view_angle": "Sideline",  "sections": "116–120"},
     "LB_121_123":   {"seat_type": "Reserved",          "level": "100",         "view_angle": "Corner",    "sections": "121–123"},
     "LB_133_135":   {"seat_type": "Reserved",          "level": "100",         "view_angle": "Corner",    "sections": "133–135"},
     "LB_141":       {"seat_type": "Reserved",          "level": "100",         "view_angle": "Corner",    "sections": "141"},
@@ -226,8 +226,8 @@ SECTION_METADATA = {
     "GA_136_140":   {"seat_type": "General Admission", "level": "Field Level", "view_angle": "End Zone",  "sections": "136–140"},
     "UB_202_207":   {"seat_type": "Reserved",          "level": "200",         "view_angle": "Sideline",  "sections": "202–207"},
     "UB_208_212":   {"seat_type": "Reserved",          "level": "200",         "view_angle": "Sideline",  "sections": "208–212"},
-    "UB_235_238":   {"seat_type": "Reserved",          "level": "200",         "view_angle": "Sideline",  "sections": "235–238"},
-    "WC_C223_C231": {"seat_type": "Club",              "level": "Suites",      "view_angle": "Sideline",  "sections": "C223–C231"},
+    "UB_235_238":   {"seat_type": "Reserved",          "level": "200",         "view_angle": "Corner",    "sections": "235–238"},
+    "WC_C223_C231": {"seat_type": "Club",              "level": "Suites",      "view_angle": "Midfield",  "sections": "C223–C231"},
     "UC_323_334":   {"seat_type": "Reserved",          "level": "300",         "view_angle": "Midfield",  "sections": "323–334"},
 }
 
@@ -246,8 +246,8 @@ SECTION_GROUP_COUNTS: dict[str, int] = {
     "GA_136_140":   5,   # east GA sandbox: 136-140
     "UB_202_207":   6,   # south upper: 202-207
     "UB_208_212":   5,   # south upper: 208-212
-    "UB_235_238":   4,   # west upper: 235-238
-    "WC_C223_C231": 9,   # west club/suites: C223-C231
+    "UB_235_238":   4,   # NE upper corner: 235-238
+    "WC_C223_C231": 9,   # north upper suites: C223-C231
     "UC_323_334":  12,   # north upper concourse: 323-334
 }
 
@@ -271,7 +271,7 @@ SECTION_HIERARCHY = {
         "groups": ["UB_202_207", "UB_208_212", "UB_235_238"],
     },
     "Premium": {
-        "label": "Suites & West Club",
+        "label": "North Suites (C223–C231)",
         "groups": ["WC_C223_C231"],
     },
     "Upper Concourse": {
@@ -510,11 +510,11 @@ def _build_stadium_svg(
 ) -> str:
     """Generate a professional SVG seat map for Snapdragon Stadium with zoom/pan.
 
-    Layout follows real Snapdragon Stadium geometry:
-    - SOUTH: Lower bowl (100-level, sections 101-113) + Upper bowl (200-level, 202-212)
-    - WEST (left): Lower bowl (114-123), Club/Suites (C223-C231) on sideline, Upper (235-238)
-    - NORTH: Field Club (C124-C132) + Upper Concourse (323-334)
-    - EAST (right): Corner sections (133-135), Supporters GA (136-140), Corner (141)
+    Layout matches the real Ticketmaster seat map of Snapdragon Stadium:
+    - SOUTH (bottom): Lower bowl 100-level (101 east → 113 west) + 200-level (202-212) behind
+    - WEST (left):  Lower bowl sideline (114 south → 123 north corner)
+    - NORTH (top):  Field Club / Founders (C124-C132) + Upper Suites (C223-C231) + Upper Concourse (323-334)
+    - EAST (right): Corner 133-135, large Supporter GA (136-140), corner 141, upper 235-238
 
     Seat dots are color-coded by ticket status:
     - Blue: Season ticket holder seat
@@ -524,8 +524,8 @@ def _build_stadium_svg(
     """
     import math
 
-    W, H = 1100, 850
-    CX, CY = 550, 400   # pitch centre (raised so south stand fits)
+    W, H = 1100, 950
+    CX, CY = 520, 440   # pitch centre
     SC = 175             # pixels per data unit
 
     def px(dx, dy):
@@ -535,24 +535,40 @@ def _build_stadium_svg(
         return " ".join(f"{CX+x*SC:.1f},{CY-y*SC:.1f}" for x, y in pairs)
 
     # ── Stand boundaries (data units) ─────────────────────────────────────
-    PX0, PX1 = -1.05,  1.05   # pitch west-east edges
-    PY0, PY1 = -0.68,  0.68   # pitch south-north edges
+    # Pitch edges
+    PX0, PX1 = -1.05,  1.05   # west-east pitch edges
+    PY0, PY1 = -0.68,  0.68   # south-north pitch edges
 
-    S_IN,  S_LL,  S_UB = PY0, -1.22, -1.72   # south tiers (3-level)
-    N_IN,  N_FC,  N_UC = PY1,  1.14,  1.50   # north tiers (2-level)
-    S_XSPAN = 1.15   # south/north half-width
+    # SOUTH: lower bowl (100) then upper bowl (200) further out
+    S_IN  = PY0        # -0.68 — inner edge (pitch side)
+    S_LL  = -1.28      # lower bowl outer edge
+    S_UB  = -1.80      # 200-level outer edge
+    S_XSPAN = 1.15     # half-width of south stands
 
-    # West sideline: lower bowl → club/suites → upper 200-level
-    W_IN  = PX0              # -1.05 — pitch edge
-    W_LL  = -1.55            # lower bowl outer edge
-    W_CL  = -1.92            # club level outer edge
-    W_UB  = -2.12            # 200-level upper outer edge (behind club)
+    # NORTH: field club, then upper suites, then upper concourse
+    N_IN  = PY1        #  0.68 — inner edge (pitch side)
+    N_FC  = 1.06       # field club outer edge
+    N_SU  = 1.32       # upper suites (C223-C231) outer edge
+    N_UC  = 1.62       # upper concourse (323-334) outer edge
+    N_XSPAN = 1.15     # half-width of north stands
 
-    # East goal end
-    E_IN   = PX1             #  1.05 — pitch edge
-    E_OUT  = 1.52            # east end outer edge
+    # WEST sideline: lower bowl only (no 200-level on west per TM map)
+    W_IN  = PX0        # -1.05 — pitch edge
+    W_LL  = -1.60      # lower bowl outer edge (wider for 10 sections)
 
-    G_YSPAN = PY1            # ±0.68 — goal-end y half-height
+    # EAST: goal-end sections + Supporter GA
+    E_IN  = PX1        #  1.05 — pitch edge
+    E_LL  = 1.52       # lower sections outer edge (133-135, 141)
+    E_GA  = 1.80       # Supporter GA outer edge (large standing area)
+
+    # Y-span for east/west sideline sections
+    G_YSPAN = PY1      # ±0.68
+
+    # Upper 235-238: north-east corner area (between suites and east end)
+    UB235_X0 = 0.90    # starts near east edge of north suites
+    UB235_X1 = E_LL    # extends to east section edge
+    UB235_Y0 = N_FC    # same tier as upper suites
+    UB235_Y1 = N_SU    # same outer edge as upper suites
 
     # ── Seat status helpers ───────────────────────────────────────────────
     # For each section group, compute per-section-instance status breakdown
@@ -729,7 +745,8 @@ def _build_stadium_svg(
         )
 
     # ═══════════════════════════════════════════════════════════════════════
-    # SOUTH LOWER BOWL — 13 sections (101-113), east → west
+    # SOUTH LOWER BOWL — 13 sections (101 east → 113 west)
+    # Per TM map: 101 is far right, 113 is far left (west)
     # ═══════════════════════════════════════════════════════════════════════
     _sb = [S_XSPAN - i*(2*S_XSPAN/13) for i in range(14)]
     _sl = [str(101+i) for i in range(13)]
@@ -738,7 +755,8 @@ def _build_stadium_svg(
         add_sec(_sl[i], _sg[i], _sb[i+1], _sb[i], S_IN, S_LL, rows="h", nr=22)
 
     # ═══════════════════════════════════════════════════════════════════════
-    # SOUTH 200-LEVEL — 11 sections (202-212), east → west
+    # SOUTH 200-LEVEL — 11 sections (202 east → 212 west)
+    # Behind the south lower bowl, same width
     # ═══════════════════════════════════════════════════════════════════════
     _ub = [S_XSPAN - i*(2*S_XSPAN/11) for i in range(12)]
     _ul = [str(202+i) for i in range(11)]
@@ -747,7 +765,8 @@ def _build_stadium_svg(
         add_sec(_ul[i], _ug[i], _ub[i+1], _ub[i], S_LL, S_UB, rows="h", nr=14)
 
     # ═══════════════════════════════════════════════════════════════════════
-    # WEST LOWER BOWL — 10 sections (114-123), south → north
+    # WEST LOWER BOWL — 10 sections (114 south → 123 north)
+    # Along the west sideline
     # ═══════════════════════════════════════════════════════════════════════
     _wb = [-G_YSPAN + i*(2*G_YSPAN/10) for i in range(11)]
     _wl = [str(114+i) for i in range(10)]
@@ -756,52 +775,83 @@ def _build_stadium_svg(
         add_sec(_wl[i], _wg[i], W_LL, W_IN, _wb[i], _wb[i+1], rows="v", nr=14)
 
     # ═══════════════════════════════════════════════════════════════════════
-    # WEST CLUB / SUITES — 9 sections (C223-C231), south → north
-    # Positioned on the WEST SIDELINE (behind lower bowl), not end zone
+    # NORTH FIELD CLUB (Founders) — 9 sections (C124 west → C132 east)
+    # At field level on the north sideline
     # ═══════════════════════════════════════════════════════════════════════
-    _wcb = [-G_YSPAN + i*(2*G_YSPAN/9) for i in range(10)]
+    _fc_x0 = -0.88   # field club is narrower than full north span (inside the corners)
+    _fc_x1 =  0.88
+    _fb = [_fc_x0 + i*(_fc_x1 - _fc_x0)/9 for i in range(10)]
     for i in range(9):
-        add_sec(f"C{223+i}", "WC_C223_C231", W_CL, W_LL, _wcb[i], _wcb[i+1], rows="v", nr=10)
+        add_sec(f"C{124+i}", "FC_C124_C132", _fb[i], _fb[i+1], N_IN, N_FC, rows="h", nr=14)
 
     # ═══════════════════════════════════════════════════════════════════════
-    # WEST UPPER 200-LEVEL — 4 sections (235-238), south → north
-    # Behind the club/suites on the west sideline
+    # NORTH UPPER SUITES — 9 sections (C223 west → C231 east)
+    # Behind the field club, above it on the north side
     # ═══════════════════════════════════════════════════════════════════════
-    _wub = [-G_YSPAN + i*(2*G_YSPAN/4) for i in range(5)]
-    for i in range(4):
-        add_sec(str(235+i), "UB_235_238", W_UB, W_CL, _wub[i], _wub[i+1], rows="v", nr=12)
-
-    # ═══════════════════════════════════════════════════════════════════════
-    # NORTH FIELD CLUB — 9 sections (C124-C132), west → east
-    # ═══════════════════════════════════════════════════════════════════════
-    _fb = [-S_XSPAN + i*(2*S_XSPAN/9) for i in range(10)]
+    _su_x0 = -0.78   # suites slightly narrower span
+    _su_x1 =  0.78
+    _sub = [_su_x0 + i*(_su_x1 - _su_x0)/9 for i in range(10)]
     for i in range(9):
-        add_sec(f"C{124+i}", "FC_C124_C132", _fb[i], _fb[i+1], N_IN, N_FC, rows="h", nr=18)
+        add_sec(f"C{223+i}", "WC_C223_C231", _sub[i], _sub[i+1], N_FC, N_SU, rows="h", nr=8)
 
     # ═══════════════════════════════════════════════════════════════════════
-    # NORTH UPPER CONCOURSE — 12 sections (323-334), west → east
+    # NORTH UPPER CONCOURSE — 12 sections (323 west → 334 east)
+    # Top tier on the north side, widest span
     # ═══════════════════════════════════════════════════════════════════════
-    _ucb = [-S_XSPAN + i*(2*S_XSPAN/12) for i in range(13)]
+    _ucb = [-N_XSPAN + i*(2*N_XSPAN/12) for i in range(13)]
     for i in range(12):
-        add_sec(str(323+i), "UC_323_334", _ucb[i], _ucb[i+1], N_FC, N_UC, rows="h", nr=12)
+        add_sec(str(323+i), "UC_323_334", _ucb[i], _ucb[i+1], N_SU, N_UC, rows="h", nr=12)
 
     # ═══════════════════════════════════════════════════════════════════════
-    # EAST GOAL END — Supporters section behind the goal
-    # NE corner:  133, 134, 135  (3 strips, north → south)
-    # Supporters GA: 136–140     (5 strips, behind goal, north → south)
-    # SE corner:  141
+    # EAST SIDE — Goal end sections per TM map:
+    #   NE corner: 133, 134, 135 (north to south, corner sections)
+    #   Supporter GA: 136-140 (large standing area behind east goal)
+    #   SE corner: 141
     # ═══════════════════════════════════════════════════════════════════════
-    E_TOP = 0.24; E_BOT = -0.24
-    # NE corner sections 133-135
-    _ne_y = [G_YSPAN - i * (G_YSPAN - E_TOP) / 3 for i in range(4)]
+
+    # NE corner sections 133-135 (between north end and the GA section)
+    _ne_y0 = 0.28   # bottom of 135
+    _ne_y1 = G_YSPAN  # top of 133 aligns with pitch north edge
+    _ne_dy = (_ne_y1 - _ne_y0) / 3
     for i, sn in enumerate(["133", "134", "135"]):
-        add_sec(sn, "LB_133_135", E_IN, E_OUT, _ne_y[i + 1], _ne_y[i], rows="v", nr=10)
-    # Supporters GA sections 136-140 (standing room behind east goal)
-    _ga_y = [E_TOP - i * (E_TOP - E_BOT) / 5 for i in range(6)]
+        y_top = _ne_y1 - i * _ne_dy
+        y_bot = _ne_y1 - (i+1) * _ne_dy
+        add_sec(sn, "LB_133_135", E_IN, E_LL, y_bot, y_top, rows="v", nr=10)
+
+    # Supporter GA — large single block behind east goal (136-140)
+    # This is the big "SUPPORTER GENERAL ADMISSION" area on the TM map
+    _ga_y0 = -0.28   # bottom of GA area
+    _ga_y1 =  0.28   # top of GA area
+    _ga_dy = (_ga_y1 - _ga_y0) / 5
     for i in range(5):
-        add_sec(str(136 + i), "GA_136_140", E_IN, E_OUT, _ga_y[i + 1], _ga_y[i], rows="v", nr=8)
-    # SE corner section 141
-    add_sec("141", "LB_141", E_IN, E_OUT, -G_YSPAN, E_BOT, rows="v", nr=10)
+        y_top = _ga_y1 - i * _ga_dy
+        y_bot = _ga_y1 - (i+1) * _ga_dy
+        add_sec(str(136 + i), "GA_136_140", E_IN, E_GA, y_bot, y_top, rows="v", nr=8)
+
+    # SE corner section 141 (between GA and south end)
+    add_sec("141", "LB_141", E_IN, E_LL, -G_YSPAN, -0.28, rows="v", nr=10)
+
+    # "SUPPORTER GENERAL ADMISSION" overlay label (rotated 90°, centred on GA block)
+    _ga_cx, _ga_cy = px((E_IN + E_GA) / 2, 0)
+    sections_svg.append(
+        f'<text x="{_ga_cx:.1f}" y="{_ga_cy:.1f}" text-anchor="middle" '
+        f'dominant-baseline="middle" fill="rgba(255,255,255,0.55)" '
+        f'font-size="10" font-family="Arial" font-weight="700" letter-spacing="0.08em" '
+        f'transform="rotate(-90,{_ga_cx:.1f},{_ga_cy:.1f})" '
+        f'pointer-events="none">SUPPORTER GENERAL ADMISSION</text>'
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # UPPER 235-238 — North-east corner area (per TM map: near CUTWATER)
+    # Between the north upper suites and the east end
+    # ═══════════════════════════════════════════════════════════════════════
+    _ub235_dy = (UB235_Y1 - UB235_Y0) / 4
+    for i in range(4):
+        x0 = UB235_X0
+        x1 = UB235_X1
+        y0 = UB235_Y0 + i * _ub235_dy
+        y1 = UB235_Y0 + (i+1) * _ub235_dy
+        add_sec(str(235+i), "UB_235_238", x0, x1, y0, y1, rows="v", nr=10)
 
     # ── Pitch markings ─────────────────────────────────────────────────────
     def pl(x0d, y0d, x1d, y1d):
@@ -833,7 +883,7 @@ def _build_stadium_svg(
     ]
 
     # ── Bowl background ────────────────────────────────────────────────────
-    bx0, by0 = px(-2.25, 1.68); bx1, by1 = px(2.05, -1.88)
+    bx0, by0 = px(-1.72, N_UC+0.08); bx1, by1 = px(E_GA+0.08, S_UB-0.08)
 
     # ── Assemble SVG ──────────────────────────────────────────────────────
     svg = f"""<svg id="stadiumSvg" width="{W}" height="{H}" viewBox="0 0 {W} {H}"
@@ -909,12 +959,16 @@ def _build_stadium_svg(
         width="{(bx1-bx0)*162/W:.1f}" height="{(by1-by0)*142/H:.1f}"
         rx="3" fill="#1e2440" stroke="#4B5563" stroke-width="0.8"/>
   <!-- North upper concourse (300-level) -->
-  <rect x="{(CX-S_XSPAN*SC)*162/W:.1f}" y="{(CY-N_UC*SC)*142/H:.1f}"
-        width="{2*S_XSPAN*SC*162/W:.1f}" height="{(N_UC-N_FC)*SC*142/H:.1f}"
+  <rect x="{(CX-N_XSPAN*SC)*162/W:.1f}" y="{(CY-N_UC*SC)*142/H:.1f}"
+        width="{2*N_XSPAN*SC*162/W:.1f}" height="{(N_UC-N_SU)*SC*142/H:.1f}"
         fill="#4a5880"/>
-  <!-- North field club -->
-  <rect x="{(CX-S_XSPAN*SC)*162/W:.1f}" y="{(CY-N_FC*SC)*142/H:.1f}"
-        width="{2*S_XSPAN*SC*162/W:.1f}" height="{(N_FC-N_IN)*SC*142/H:.1f}"
+  <!-- North upper suites (C223-C231) -->
+  <rect x="{(CX-0.78*SC)*162/W:.1f}" y="{(CY-N_SU*SC)*142/H:.1f}"
+        width="{1.56*SC*162/W:.1f}" height="{(N_SU-N_FC)*SC*142/H:.1f}"
+        fill="#6672a0"/>
+  <!-- North field club (C124-C132) -->
+  <rect x="{(CX-0.88*SC)*162/W:.1f}" y="{(CY-N_FC*SC)*142/H:.1f}"
+        width="{1.76*SC*162/W:.1f}" height="{(N_FC-N_IN)*SC*142/H:.1f}"
         fill="#5c6ea0"/>
   <!-- South lower bowl (100-level) -->
   <rect x="{(CX-S_XSPAN*SC)*162/W:.1f}" y="{(CY-S_IN*SC)*142/H:.1f}"
@@ -928,17 +982,9 @@ def _build_stadium_svg(
   <rect x="{(CX+W_LL*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
         width="{abs(W_IN-W_LL)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
         fill="#5c6ea0"/>
-  <!-- West club level -->
-  <rect x="{(CX+W_CL*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
-        width="{abs(W_LL-W_CL)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
-        fill="#4a5880"/>
-  <!-- West upper 200-level -->
-  <rect x="{(CX+W_UB*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
-        width="{abs(W_CL-W_UB)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
-        fill="#3d4d70"/>
-  <!-- East end -->
+  <!-- East corners + GA -->
   <rect x="{(CX+E_IN*SC)*162/W:.1f}" y="{(CY-G_YSPAN*SC)*142/H:.1f}"
-        width="{abs(E_OUT-E_IN)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
+        width="{(E_GA-E_IN)*SC*162/W:.1f}" height="{2*G_YSPAN*SC*142/H:.1f}"
         fill="#5c6ea0"/>
   <!-- Pitch — vivid green so it's instantly recognisable -->
   <rect x="{psx*162/W:.1f}" y="{psy*142/H:.1f}"
@@ -1328,52 +1374,169 @@ def render_seat_map():
                 f'<span style="font-size:12px;color:#9CA3AF">{opp_conf} · {opp_comp}</span></div>',
                 unsafe_allow_html=True,
             )
-            # ── Match Significance Breakdown ──────────────────────────────
+            # ── Game Impact Score (1-10 holistic KPI) ─────────────────────
             _gr = selected_row.iloc[0]
-            _sig_components = [
-                ("is_baja_cup",      "Baja Cup",       3.0, "🏆"),
-                ("is_rivalry",       "Rivalry",        2.0, "⚔️"),
-                ("is_marquee",       "Marquee",        2.0, "⭐"),
-                ("is_season_opener", "Opener",         2.0, "🎉"),
-                ("is_decision_day",  "Decision Day",   1.5, "🏁"),
-            ]
-            # star_player flag may appear under different column names
+
+            # Helper to safely read numeric columns (handles missing/NaN)
+            def _gv(col, default=0.0):
+                v = _gr.get(col, default)
+                try:
+                    return float(v) if v is not None and v == v else default  # NaN check
+                except (ValueError, TypeError):
+                    return default
+
+            def _gb(col):
+                v = _gr.get(col, False)
+                try:
+                    return bool(v)
+                except (ValueError, TypeError):
+                    return False
+
+            # ── Component scores (each 0-10, then weighted) ──────────
+            _factors = []   # (label, icon, raw_score_0_10, weight, explanation)
+
+            # 1. Demand Forecast (from ML model output)
+            _demand = _gv("demand_index", _gv("target_demand_index", 0.80))
+            _dem_score = min(10, max(1, _demand * 10))
+            _dem_txt = f"{_demand*100:.0f}% projected sell-through"
+            _factors.append(("Demand Forecast", "📊", _dem_score, 2.0, _dem_txt))
+
+            # 2. Opponent Strength (tier 1=best → 4=weakest)
+            _opp_tier = _gv("opponent_tier", _gv("g2_opponent_tier", 3))
+            _opp_score = {1: 10, 2: 7.5, 3: 5, 4: 3}.get(int(_opp_tier), 5)
+            _opp_str = _gv("g2_opponent_strength", _gv("opponent_strength", 2))
+            _opp_txt = f"Tier {int(_opp_tier)} opponent"
+            if _gb("is_rivalry") or _gb("g2_is_rivalry"):
+                _opp_score = min(10, _opp_score + 2)
+                _opp_txt += " · Rivalry"
+            if _gb("is_marquee") or _gb("g2_is_marquee"):
+                _opp_score = min(10, _opp_score + 1.5)
+                _opp_txt += " · Marquee"
+            _factors.append(("Opponent", "⚔️", min(10, _opp_score), 2.0, _opp_txt))
+
+            # 3. Secondary Market Heat
+            _sec_prem = _gv("secondary_premium_pct", 10)
+            _mkt_health = str(_gr.get("market_health", _gr.get("market_health_dominant", "healthy")))
+            if _sec_prem > 40:   _mkt_s = 10
+            elif _sec_prem > 25: _mkt_s = 8
+            elif _sec_prem > 15: _mkt_s = 6.5
+            elif _sec_prem > 5:  _mkt_s = 5
+            else:                _mkt_s = 3
+            _mkt_txt = f"{_sec_prem:.0f}% secondary premium · {_mkt_health}"
+            _factors.append(("Market Heat", "🔥", _mkt_s, 1.5, _mkt_txt))
+
+            # 4. Special Event Flags
+            _event_score = 1.0
+            _event_parts = []
+            if _gb("is_baja_cup") or _gb("g1_is_baja_cup") or _gb("g14_is_baja_cup"):
+                _event_score += 3.5; _event_parts.append("Baja Cup")
+            if _gb("is_season_opener") or _gb("g1_is_season_opener"):
+                _event_score += 3.0; _event_parts.append("Season Opener")
+            if _gb("is_decision_day") or _gb("g1_is_decision_day"):
+                _event_score += 2.5; _event_parts.append("Decision Day")
             _star_col = next((c for c in ["star_player_on_opponent", "g3_star_player_on_opp"]
                                if c in _gr.index), None)
-            if _star_col:
-                _sig_components.append((_star_col, "Star Player", 1.5, "🌟"))
+            if _star_col and _gb(_star_col):
+                _event_score += 2.0; _event_parts.append("Star Player")
+            if _gb("g1_is_fifa_adjacent"):
+                _event_score += 1.0; _event_parts.append("FIFA Window")
+            _event_score = min(10, _event_score)
+            _event_txt = " · ".join(_event_parts) if _event_parts else "Regular season match"
+            _factors.append(("Event Flags", "🎪", _event_score, 1.5, _event_txt))
 
-            _MAX_SCORE = sum(w for _, _, w, _ in _sig_components)
-            _score = sum(w for col, _, w, _ in _sig_components if bool(_gr.get(col, False)))
-            _active = [(lbl, w, icon) for col, lbl, w, icon in _sig_components
-                       if bool(_gr.get(col, False))]
+            # 5. Timing & Day-of-Week
+            _is_wknd = _gb("g1_is_weekend") or _gb("is_weekend")
+            _is_sat = _gb("g1_is_saturday")
+            _is_sun = _gb("g1_is_sunday")
+            _is_wed = _gb("g1_is_wednesday")
+            if _is_sat:     _time_s = 9
+            elif _is_sun:   _time_s = 7.5
+            elif _is_wknd:  _time_s = 8
+            elif _is_wed:   _time_s = 4
+            else:           _time_s = 5.5
+            _season_prog = _gv("g1_season_progress", 0.5)
+            # Early and late season get a bump (opener hype + playoff push)
+            if _season_prog < 0.15 or _season_prog > 0.85:
+                _time_s = min(10, _time_s + 1)
+            _dow = "Weekend" if _is_wknd else ("Midweek" if _is_wed else "Weekday")
+            _time_txt = f"{_dow}"
+            if _season_prog < 0.15:
+                _time_txt += " · Early season buzz"
+            elif _season_prog > 0.85:
+                _time_txt += " · Playoff push"
+            _factors.append(("Timing", "📅", _time_s, 1.0, _time_txt))
 
-            # Score bar color
-            _bar_pct = int(_score / _MAX_SCORE * 100) if _MAX_SCORE else 0
-            _bar_col = "#F59E0B" if _score >= 4 else ("#60A5FA" if _score >= 2 else "#374151")
+            # 6. Weather Impact
+            _weather = _gv("g8_weather_demand_impact", 1.0)
+            _temp = _gv("g8_temp_f", 72)
+            _rain = _gv("g8_rain_prob", 0)
+            _wx_s = min(10, max(1, _weather * 10))
+            _wx_parts = [f"{_temp:.0f}°F"]
+            if _rain > 0.3:
+                _wx_parts.append(f"{_rain*100:.0f}% rain")
+            _wx_txt = " · ".join(_wx_parts)
+            _factors.append(("Weather", "🌤️", _wx_s, 0.5, _wx_txt))
 
-            # Chip HTML for active flags
-            _chips = "".join(
-                f'<span style="background:#1f2937;border:1px solid {_bar_col}33;'
-                f'border-radius:4px;padding:2px 7px;font-size:11px;color:#E5E7EB;white-space:nowrap">'
-                f'{icon} {lbl} <span style="color:{_bar_col};font-weight:700">+{w:.0f}</span></span>'
-                for lbl, w, icon in _active
-            ) if _active else (
-                '<span style="font-size:11px;color:#4B5563;font-style:italic">No special flags</span>'
-            )
+            # 7. Promotions & Social Buzz
+            _promo = _gv("g10_promo_score", 0)
+            _buzz = _gv("g13_reddit_buzz_score", _gv("g13_social_sentiment", 0.5))
+            _promo_s = min(10, max(1, 3 + _promo * 2 + _buzz * 4))
+            _promo_parts = []
+            if _gb("g10_has_giveaway"):  _promo_parts.append("Giveaway")
+            if _gb("g10_has_fireworks"): _promo_parts.append("Fireworks")
+            if _gb("g10_has_theme_night"):_promo_parts.append("Theme Night")
+            if _buzz > 0.7: _promo_parts.append("High social buzz")
+            _promo_txt = " · ".join(_promo_parts) if _promo_parts else "No promos"
+            _factors.append(("Buzz & Promos", "📣", _promo_s, 0.5, _promo_txt))
 
+            # ── Compute weighted average → 1-10 scale ────────────────
+            _total_w = sum(w for _, _, _, w, _ in _factors)
+            _raw = sum(s * w for _, _, s, w, _ in _factors) / _total_w if _total_w > 0 else 5
+            _gis = round(min(10.0, max(1.0, _raw)), 1)
+
+            # Color gradient: 1-3 cold, 4-6 warm, 7-8 hot, 9-10 fire
+            if _gis >= 9:   _gis_col = "#EF4444"   # red-hot
+            elif _gis >= 7: _gis_col = "#F59E0B"   # amber
+            elif _gis >= 5: _gis_col = "#60A5FA"   # blue
+            elif _gis >= 3: _gis_col = "#6B7280"   # gray
+            else:           _gis_col = "#374151"
+
+            # Build top-3 reasons subtitle
+            _sorted_f = sorted(_factors, key=lambda x: x[2] * x[3], reverse=True)
+            _top_reasons = [f"{ic} {lb}: {exp}" for lb, ic, sc, wt, exp in _sorted_f[:3]]
+            _subtitle = " | ".join(_top_reasons)
+
+            # Factor chips
+            _f_chips = ""
+            for _lb, _ic, _sc, _wt, _exp in _factors:
+                # Chip color based on individual factor score
+                _fc = "#EF4444" if _sc >= 8 else ("#F59E0B" if _sc >= 6 else ("#60A5FA" if _sc >= 4 else "#4B5563"))
+                _f_chips += (
+                    f'<span title="{_exp}" style="background:#1f2937;border:1px solid {_fc}44;'
+                    f'border-radius:4px;padding:2px 8px;font-size:11px;color:#E5E7EB;'
+                    f'white-space:nowrap;cursor:help">'
+                    f'{_ic} {_lb} <span style="color:{_fc};font-weight:700">{_sc:.1f}</span></span>'
+                )
+
+            # Score circle + bar + subtitle + factor chips
+            _bar_pct = int((_gis - 1) / 9 * 100)
             st.markdown(
                 f'<div style="background:#0f1423;border:1px solid #1f2937;border-radius:8px;'
-                f'padding:10px 14px;margin-bottom:8px">'
-                f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+                f'padding:12px 14px;margin-bottom:8px">'
+                # Header row: label + big score
+                f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
                 f'<span style="font-size:11px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em">'
-                f'Match Significance</span>'
-                f'<span style="font-size:16px;font-weight:700;color:{_bar_col}">'
-                f'{_score:.1f} / {_MAX_SCORE:.1f}</span></div>'
-                f'<div style="background:#1a1d2e;border-radius:3px;height:5px;margin-bottom:8px">'
-                f'<div style="background:{_bar_col};width:{_bar_pct}%;height:5px;border-radius:3px;'
-                f'transition:width 0.3s"></div></div>'
-                f'<div style="display:flex;flex-wrap:wrap;gap:5px">{_chips}</div>'
+                f'Game Impact Score</span>'
+                f'<span style="font-size:22px;font-weight:800;color:{_gis_col}">'
+                f'{_gis:.1f}<span style="font-size:13px;font-weight:400;color:#6B7280"> / 10</span></span></div>'
+                # Progress bar
+                f'<div style="background:#1a1d2e;border-radius:3px;height:6px;margin-bottom:6px">'
+                f'<div style="background:linear-gradient(90deg,#374151,{_gis_col});width:{_bar_pct}%;'
+                f'height:6px;border-radius:3px;transition:width 0.3s"></div></div>'
+                # Subtitle (top reasons)
+                f'<div style="font-size:11px;color:#9CA3AF;margin-bottom:8px;line-height:1.5">{_subtitle}</div>'
+                # Factor chips
+                f'<div style="display:flex;flex-wrap:wrap;gap:5px">{_f_chips}</div>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
@@ -1543,7 +1706,7 @@ def render_seat_map():
             highlighted_groups=highlighted_groups,
             selected_groups=selected_sections,
         )
-        st.components.v1.html(svg_html, height=1080, scrolling=False)
+        st.components.v1.html(svg_html, height=1180, scrolling=False)
 
     # ── Info panel: selected section details ──────────────────────────────────
     if _has_selection and _info_col is not None:
