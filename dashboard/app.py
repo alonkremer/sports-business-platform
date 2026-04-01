@@ -589,10 +589,11 @@ def _build_stadium_svg(
         if not d:
             return "#242840"
         p = d.get("price_change_pct", 0)
-        if p > 15:  return "#1E3A8A"
-        if p > 5:   return "#2563EB"
-        if p < -15: return "#B91C1C"
-        if p < -5:  return "#EF4444"
+        # Red = raise price (underpriced), Blue = lower price (overpriced)
+        if p > 15:  return "#B91C1C"   # Deep red — raise price aggressively
+        if p > 5:   return "#EF4444"   # Medium red — raise price
+        if p < -15: return "#1E3A8A"   # Deep blue — lower price aggressively
+        if p < -5:  return "#2563EB"   # Medium blue — lower price
         return "#374151"
 
     def sec_opacity(grp):
@@ -1227,7 +1228,8 @@ def render_seat_map():
             )
             for _, r in _agg.iterrows():
                 face = float(r["face_price"])
-                pct  = float(r["optimal_price_inc"])
+                opt_inc = float(r["optimal_price_inc"])  # dollar amount, not pct
+                pchg = (opt_inc / face * 100) if face > 0 else 0  # convert to pct
                 _season_recs.append({
                     "section":             r["section"],
                     "face_price":          face,
@@ -1237,9 +1239,9 @@ def render_seat_map():
                     "market_health":       r["market_health"],
                     "shap_explanation":    f"Season average across {_n_games} home games",
                     "scenarios": {
-                        "conservative": {"price": face*(1+pct*0.5/100), "price_change_pct": pct*0.5,  "expected_sell_through": float(r["target_demand_index"]) * 100},
-                        "balanced":     {"price": face*(1+pct/100),     "price_change_pct": pct,       "expected_sell_through": float(r["target_demand_index"]) * 100},
-                        "aggressive":   {"price": face*(1+pct*1.5/100), "price_change_pct": pct*1.5,  "expected_sell_through": float(r["target_demand_index"]) * 100 * 0.92},
+                        "conservative": {"price": face + opt_inc * 0.5, "price_change_pct": pchg * 0.5, "expected_sell_through": float(r["target_demand_index"]) * 100},
+                        "balanced":     {"price": face + opt_inc,       "price_change_pct": pchg,        "expected_sell_through": float(r["target_demand_index"]) * 100},
+                        "aggressive":   {"price": face + opt_inc * 1.5, "price_change_pct": pchg * 1.5, "expected_sell_through": float(r["target_demand_index"]) * 100 * 0.92},
                     },
                 })
     else:
@@ -1616,7 +1618,7 @@ def render_seat_map():
         scenarios_raw = rec.get("scenarios", {})
         scen = scenarios_raw.get(scenario, {}) if isinstance(scenarios_raw, dict) else {}
         if not isinstance(scen, dict):
-            continue
+            scen = {}
         face = float(rec.get("face_price", 60) or 60)
         cap  = int(rec.get("capacity", 2000) or 2000)
         _raw_st = scen.get("expected_sell_through") or rec.get("target_demand_index") or 80
@@ -1625,8 +1627,17 @@ def render_seat_map():
         if st_ <= 1.0:
             st_ *= 100
         sold_avg = float(rec.get("sold_price_avg", face * 1.15) or face * 1.15)
-        scen_p   = float(scen.get("price", face) or face)
-        pchg     = float(scen.get("price_change_pct", 0) or 0)
+
+        # Compute scenario price and price change % from API or parquet fallback
+        if scen:
+            scen_p = float(scen.get("price", face) or face)
+            pchg   = float(scen.get("price_change_pct", 0) or 0)
+        else:
+            # Parquet fallback: derive price change from optimal_price_increase
+            opt_inc = float(rec.get("optimal_price_increase", 0) or 0)
+            scen_p  = face + opt_inc
+            pchg    = (opt_inc / face * 100) if face > 0 else 0
+
         sth_sold   = _estimate_sth(grp, cap)
         total_sold = int(cap * st_ / 100)
         sth_sold   = min(sth_sold, total_sold)
@@ -1667,7 +1678,7 @@ def render_seat_map():
 <div style="display:flex;align-items:center;gap:16px;margin:8px 0 6px;flex-wrap:wrap">
   <span style="font-size:11px;color:#9CA3AF">Raise price</span>
   <div style="height:10px;width:120px;border-radius:3px;flex-shrink:0;
-    background:linear-gradient(to right,#1E3A8A,#60A5FA,#E8EDF5,#FCA5A5,#DC2626);
+    background:linear-gradient(to right,#DC2626,#FCA5A5,#E8EDF5,#60A5FA,#1E3A8A);
     border:1px solid rgba(255,255,255,0.1)"></div>
   <span style="font-size:11px;color:#9CA3AF">Lower price</span>
   <span style="font-size:11px;color:#4B5563">|</span>
