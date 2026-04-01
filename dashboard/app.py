@@ -1180,6 +1180,16 @@ def _confidence(pchg_v: float) -> tuple[int, str]:
 
 def render_seat_map():
     st.title("Stadium Seat Map — Snapdragon Stadium")
+    st.markdown(
+        '<div style="color:#9CA3AF;font-size:13px;line-height:1.5;margin-bottom:16px">'
+        'This is your main pricing view. Select a game from the dropdown to see every stadium section '
+        'color-coded by pricing recommendation: <b style="color:#EF4444">red</b> means the section is underpriced '
+        '(raise price), <b style="color:#2563EB">blue</b> means overpriced or low demand (consider lowering). '
+        'Click any section on the map or in the table to drill into seat-level detail. '
+        'Switch between Conservative, Balanced, and Aggressive scenarios using the radio buttons. '
+        'The Game Impact Score (1-10) summarizes overall demand signals for the selected match.'
+        '</div>', unsafe_allow_html=True
+    )
 
     # ── Selected sections from URL query param (toggled by JS on map click) ──
     selected_sections = [s for s in st.query_params.get("secs", "").split(",") if s]
@@ -1856,7 +1866,8 @@ def _render_section_table(
         return f'<span style="color:{color};font-weight:{weight};font-variant-numeric:tabular-nums">{val}</span>'
 
     def _data_row(sec_name, level_txt, view_txt, cap, sth, sg, resale, avail,
-                  avg_p, t_rev, p_rev, pchg, is_sel=False, grp="", indent=0, is_header=False):
+                  avg_p, t_rev, p_rev, pchg, face_p=0, scen_p=0,
+                  is_sel=False, grp="", indent=0, is_header=False):
         """Build one HTML <tr> for the table."""
         row_bg = "background:rgba(96,165,250,0.08)" if is_sel else ""
         if is_header:
@@ -1870,6 +1881,8 @@ def _render_section_table(
                      f'text-decoration:none">{sec_name}</a>') if grp else (
                      f'<span style="color:{link_col};font-weight:{link_wt}">{sec_name}</span>')
         resale_col = "#EC4899" if resale > 0 else "#6B7280"
+        # Rec price color: green if above face, orange if below
+        rec_col = "#10B981" if scen_p >= face_p else "#F59E0B"
         return (
             f'<tr style="{row_bg};border-bottom:1px solid #1f2937">'
             f'<td style="padding:7px {12}px 7px {pad_l}px;white-space:nowrap">{name_cell}</td>'
@@ -1883,6 +1896,8 @@ def _render_section_table(
             f'<td style="padding:7px 10px;color:#D1D5DB;text-align:right">${avg_p:,.0f}</td>'
             f'<td style="padding:7px 10px;color:#D1D5DB;text-align:right">${t_rev:,.0f}</td>'
             f'<td style="padding:7px 10px;color:#10B981;text-align:right;font-weight:600">${p_rev:,.0f}</td>'
+            f'<td style="padding:7px 10px;color:#9CA3AF;text-align:right">${face_p:,.0f}</td>'
+            f'<td style="padding:7px 10px;color:{rec_col};text-align:right;font-weight:600">${scen_p:,.0f}</td>'
             f'<td style="padding:7px 12px;text-align:right">{_rec_badge(pchg)}</td>'
             f'</tr>'
         )
@@ -1891,7 +1906,7 @@ def _render_section_table(
         """Aggregate metrics across a list of section groups."""
         t_cap = t_sth = t_sg = t_res = t_avl = 0
         t_trev = t_prev = 0.0
-        w_pchg = 0.0
+        w_pchg = w_face = w_scen = 0.0
         for g in grps:
             d = section_data.get(g, {})
             c = d.get("capacity", 0)
@@ -1903,12 +1918,16 @@ def _render_section_table(
             t_trev += d.get("ticket_rev", 0)
             t_prev += d.get("potential_rev", 0)
             w_pchg += d.get("price_change_pct", 0) * c
+            w_face += d.get("face_price", 0) * c
+            w_scen += d.get("scenario_price", d.get("face_price", 0)) * c
         sold = t_sth + t_sg
         return {
             "cap": t_cap, "sth": t_sth, "sg": t_sg, "res": t_res, "avl": t_avl,
             "avg_p": t_trev / sold if sold > 0 else 0,
             "trev": t_trev, "prev": t_prev,
             "pchg": w_pchg / t_cap if t_cap > 0 else 0,
+            "face_p": w_face / t_cap if t_cap > 0 else 0,
+            "scen_p": w_scen / t_cap if t_cap > 0 else 0,
         }
 
     rows_html = []
@@ -1920,7 +1939,7 @@ def _render_section_table(
             "Snapdragon Stadium", "All", "All",
             a["cap"], a["sth"], a["sg"], a["res"], a["avl"],
             a["avg_p"], a["trev"], a["prev"], a["pchg"],
-            is_header=True,
+            face_p=a["face_p"], scen_p=a["scen_p"], is_header=True,
         ))
 
     elif detail_level == "level":
@@ -1934,7 +1953,7 @@ def _render_section_table(
                 level_info["label"], "", "—",
                 a["cap"], a["sth"], a["sg"], a["res"], a["avl"],
                 a["avg_p"], a["trev"], a["prev"], a["pchg"],
-                is_header=True,
+                face_p=a["face_p"], scen_p=a["scen_p"], is_header=True,
             ))
 
     elif detail_level == "group":
@@ -1950,6 +1969,7 @@ def _render_section_table(
                 d.get("avg_price", d.get("face_price", 0)),
                 d.get("ticket_rev", 0), d.get("potential_rev", 0),
                 d.get("price_change_pct", 0),
+                face_p=d.get("face_price", 0), scen_p=d.get("scenario_price", d.get("face_price", 0)),
                 is_sel=is_sel, grp=grp,
             ))
 
@@ -1984,6 +2004,7 @@ def _render_section_table(
                     sec_name, meta.get("level", ""), meta.get("view_angle", ""),
                     s_cap, s_sth, s_sg, s_res, s_avl,
                     avg_p, s_trev, s_prev, pchg,
+                    face_p=d.get("face_price", 0), scen_p=d.get("scenario_price", d.get("face_price", 0)),
                     is_sel=is_sel, grp=grp,
                 ))
 
@@ -2002,29 +2023,34 @@ def _render_section_table(
             f'<td style="padding:9px 10px;color:#E5E7EB;text-align:right">${a["avg_p"]:,.0f}</td>'
             f'<td style="padding:9px 10px;color:#E5E7EB;text-align:right">${a["trev"]:,.0f}</td>'
             f'<td style="padding:9px 10px;color:#10B981;text-align:right">${a["prev"]:,.0f}</td>'
+            f'<td style="padding:9px 10px;color:#9CA3AF;text-align:right">${a["face_p"]:,.0f}</td>'
+            f'<td style="padding:9px 10px;color:#10B981;text-align:right">${a["scen_p"]:,.0f}</td>'
             f'<td></td>'
             f'</tr>'
         )
 
     th = ('background:#0f1729;color:#6B7280;font-size:11px;text-transform:uppercase;'
           'letter-spacing:0.05em;font-weight:500;border-bottom:1px solid #374151')
+    tip_style = 'cursor:help;border-bottom:1px dotted #4B5563'
     table_html = (
         '<div style="overflow-x:auto;background:#111827;border-radius:10px;'
         'border:1px solid #1f2937;margin-bottom:12px">'
         '<table style="width:100%;border-collapse:collapse;font-size:13px">'
         '<thead><tr>'
-        f'<th style="{th};padding:9px 12px;text-align:left">Section</th>'
-        f'<th style="{th};padding:9px 10px;text-align:left">Level</th>'
-        f'<th style="{th};padding:9px 10px;text-align:left">View</th>'
-        f'<th style="{th};padding:9px 10px;text-align:right">Capacity</th>'
-        f'<th style="{th};padding:9px 10px;text-align:right;color:#3B82F6">ST Sold</th>'
-        f'<th style="{th};padding:9px 10px;text-align:right;color:#F59E0B">SG Sold</th>'
-        f'<th style="{th};padding:9px 10px;text-align:right;color:#EC4899">Resale</th>'
-        f'<th style="{th};padding:9px 10px;text-align:right;color:#10B981">Available</th>'
-        f'<th style="{th};padding:9px 10px;text-align:right">Avg Price</th>'
-        f'<th style="{th};padding:9px 10px;text-align:right">Ticket Revenue</th>'
-        f'<th style="{th};padding:9px 10px;text-align:right">Potential Rev</th>'
-        f'<th style="{th};padding:9px 12px;text-align:right">Price Adj.</th>'
+        f'<th style="{th};padding:9px 12px;text-align:left"><span title="Stadium section or section group name" style="{tip_style}">Section</span></th>'
+        f'<th style="{th};padding:9px 10px;text-align:left"><span title="Stadium level: Lower Bowl (100), Upper Bowl (200), Concourse (300), Club, or GA" style="{tip_style}">Level</span></th>'
+        f'<th style="{th};padding:9px 10px;text-align:left"><span title="Sightline angle: Midfield, Corner, Goal, or Sideline" style="{tip_style}">View</span></th>'
+        f'<th style="{th};padding:9px 10px;text-align:right"><span title="Total seat capacity in this section" style="{tip_style}">Capacity</span></th>'
+        f'<th style="{th};padding:9px 10px;text-align:right;color:#3B82F6"><span title="Season ticket holder seats sold (committed pre-season at face price)" style="{tip_style}">ST Sold</span></th>'
+        f'<th style="{th};padding:9px 10px;text-align:right;color:#F59E0B"><span title="Single-game tickets sold (individual game purchases at current face price)" style="{tip_style}">SG Sold</span></th>'
+        f'<th style="{th};padding:9px 10px;text-align:right;color:#EC4899"><span title="STH tickets listed for resale on secondary market (StubHub, SeatGeek)" style="{tip_style}">Resale</span></th>'
+        f'<th style="{th};padding:9px 10px;text-align:right;color:#10B981"><span title="Unsold seats still available for purchase" style="{tip_style}">Available</span></th>'
+        f'<th style="{th};padding:9px 10px;text-align:right"><span title="Weighted average price paid across STH (face) and single-game (market) tickets" style="{tip_style}">Avg Price</span></th>'
+        f'<th style="{th};padding:9px 10px;text-align:right"><span title="Total revenue from tickets already sold (STH × face + SG × secondary avg)" style="{tip_style}">Ticket Revenue</span></th>'
+        f'<th style="{th};padding:9px 10px;text-align:right"><span title="Additional revenue if remaining available seats sell at the scenario price" style="{tip_style}">Potential Rev</span></th>'
+        f'<th style="{th};padding:9px 10px;text-align:right"><span title="Current face price for this section" style="{tip_style}">Face $</span></th>'
+        f'<th style="{th};padding:9px 10px;text-align:right"><span title="AI-recommended price under the selected scenario (Conservative / Balanced / Aggressive)" style="{tip_style}">Rec. $</span></th>'
+        f'<th style="{th};padding:9px 12px;text-align:right"><span title="Percentage price change from face to recommended: positive = raise, negative = lower" style="{tip_style}">Price Adj.</span></th>'
         '</tr></thead>'
         f'<tbody>{"".join(rows_html)}</tbody>'
         '</table></div>'
@@ -2149,6 +2175,16 @@ def render_price_gap():
 
 def render_pricing_workshop():
     st.title("Pricing Workshop — What-If Simulator")
+    st.markdown(
+        '<div style="color:#9CA3AF;font-size:13px;line-height:1.5;margin-bottom:16px">'
+        'Experiment with price changes and see the impact in real time. '
+        'Select a game and section, then drag the price slider up or down. '
+        'Four key metrics update instantly: projected attendance, section revenue, STH resale margin, and sell-through rate. '
+        'The revenue curve shows where your proposed price sits relative to the optimal point. '
+        'The STH safe ceiling (blue dashed line) marks the maximum price that keeps season ticket holders profitable on resale. '
+        'Use this view to test "what if" scenarios before committing to a pricing decision.'
+        '</div>', unsafe_allow_html=True
+    )
 
     games_df = get_games_data(2026)
     df = load_features()
@@ -2260,7 +2296,16 @@ def render_pricing_workshop():
 
 def render_sth_dashboard():
     st.title("STH Value Dashboard — Season Ticket Holder Resale Tracker")
-    st.caption("Helps club demonstrate season ticket value at renewal time")
+    st.markdown(
+        '<div style="color:#9CA3AF;font-size:13px;line-height:1.5;margin-bottom:16px">'
+        'This view helps you prove that season tickets are worth the commitment. '
+        'It tracks the secondary market resale value of every section across all 17 home games. '
+        'Green bars mean the STH can resell at a profit; red bars mean they would break even or lose money on that game. '
+        'The total season resale value shows the aggregate profit potential across the full schedule. '
+        'Filter by section tier to customize renewal messaging for different fan segments. '
+        'The STH Value Statement at the bottom is copy-paste ready for renewal emails and marketing materials.'
+        '</div>', unsafe_allow_html=True
+    )
 
     df = load_features()
     if df.empty:
@@ -2336,6 +2381,16 @@ def render_sth_dashboard():
 
 def render_performance_report():
     st.title("Performance Report — Backtesting & Model Accuracy")
+    st.markdown(
+        '<div style="color:#9CA3AF;font-size:13px;line-height:1.5;margin-bottom:16px">'
+        'Your accountability dashboard. It shows how accurate the demand model is, '
+        'how much revenue the optimizer would have captured versus flat pricing, and where the biggest '
+        'opportunities were in the 2025 inaugural season. '
+        'The sensitivity analysis proves the Balanced scenario is robust even if the model is 20% wrong. '
+        'Use the 2025 retrospective to justify the data-driven pricing strategy to leadership — '
+        'it quantifies exactly how much money was left on the table with static pricing.'
+        '</div>', unsafe_allow_html=True
+    )
 
     df = load_features()
     if df.empty:

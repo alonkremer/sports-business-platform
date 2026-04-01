@@ -314,10 +314,10 @@ def build_user_guide():
 
     story.append(Paragraph(
         'EXAMPLE: You select "Sep 27 vs Club Tijuana (Baja Cup)". The map is mostly red and orange. '
-        "Game Impact Score: 9.2. Lower bowl midfield (sections 111-115) shows face price $75, optimal $91, "
-        "gap of $16/seat. This is your highest-opportunity game. Switch to Aggressive scenario using the "
-        "radio buttons at the top. Field club sections show $180 face vs $245 secondary -- even aggressive "
-        "pricing at $220 keeps STH margins healthy.",
+        "Game Impact Score: 8.3. Lower bowl midfield (sections 111-115) shows face price $128, optimal $171, "
+        "gap of $43/seat. This is your highest-opportunity game. Switch to Aggressive scenario using the "
+        "radio buttons at the top. Field club sections show $235 face vs $395 secondary -- even aggressive "
+        "pricing at $300 keeps STH margins healthy.",
         s["InsightBox"]
     ))
     story.append(Paragraph(
@@ -446,7 +446,223 @@ def build_user_guide():
     return path
 
 
+def build_views_guide():
+    path = OUT_DIR / "SD_FC_Views_Guide.pdf"
+    doc = SimpleDocTemplate(
+        str(path), pagesize=letter,
+        topMargin=0.5 * inch, bottomMargin=0.45 * inch,
+        leftMargin=0.65 * inch, rightMargin=0.65 * inch
+    )
+    s = get_styles()
+    story = []
+
+    # ── PAGE 1: Pricing Workshop ─────────────────────────────────────────
+    story.append(Paragraph("SD FC Pricing Intelligence — View Guide", s["DocTitle"]))
+    story.append(Paragraph("Detailed Explanation of Each Dashboard View", s["DocSubtitle"]))
+    story.append(make_hr())
+
+    story.append(Paragraph("Pricing Workshop — What-If Simulator", s["SectionHead"]))
+    story.append(Paragraph(
+        "The Pricing Workshop lets you experiment with price changes and see the impact in real time "
+        "before committing to any decision. It is the most hands-on view in the platform.",
+        s["Body"]
+    ))
+
+    story.append(Paragraph("How to use it", s["BodyBold"]))
+    story.append(Paragraph(
+        "1.  Select a game and section from the dropdowns at the top. The view shows three KPI cards: "
+        "the current face price, the secondary market average (what fans actually pay on StubHub/SeatGeek), "
+        "and the section capacity.",
+        s["Body"]
+    ))
+    story.append(Paragraph(
+        "2.  Drag the price slider up or down. The range goes from 70% to 150% of face price. "
+        "Four metrics update instantly as you move the slider:",
+        s["Body"]
+    ))
+    story.append(Paragraph("Projected Attendance — how many seats you expect to sell at this price, based on the demand model and elasticity estimate", s["BulletCustom"], bulletText="\u2022"))
+    story.append(Paragraph("Section Revenue — price multiplied by projected seats sold, with a delta showing gain or loss versus current pricing", s["BulletCustom"], bulletText="\u2022"))
+    story.append(Paragraph("STH Resale Margin — the dollar profit (and percentage) a season ticket holder would make reselling at secondary market rates. Green = healthy (10%+), yellow = tight (0-10%), red = underwater", s["BulletCustom"], bulletText="\u2022"))
+    story.append(Paragraph("Sell-through — the percentage of section capacity you expect to fill at this price", s["BulletCustom"], bulletText="\u2022"))
+
+    story.append(Paragraph(
+        "3.  The revenue curve chart at the bottom plots every possible price against the revenue it would "
+        "generate. Three reference lines help you decide: the red dashed line is your proposed price, "
+        "the gray dotted line is the current face price, and the blue dashed line is the STH safe ceiling — "
+        "the maximum price that keeps season ticket holders profitable on resale.",
+        s["Body"]
+    ))
+
+    story.append(Paragraph("What to look for", s["BodyBold"]))
+    story.append(Paragraph(
+        "The peak of the revenue curve is the theoretical revenue-maximizing price. But the STH safe ceiling "
+        "constrains you — pricing above it means season ticket holders lose money on resale, which damages "
+        "renewal rates. The sweet spot is between the current face price and the STH ceiling. "
+        "If the current face price is already near the peak, there is little opportunity to capture. "
+        "If the peak is well above the current face price and below the STH ceiling, you have a clear "
+        "pricing opportunity.",
+        s["Body"]
+    ))
+
+    story.append(Paragraph(
+        'EXAMPLE: Select "Mar 1 vs St. Louis City SC" (season opener) and section "LB_111_115" (lower bowl '
+        'midfield). Face price is $128. Drag the slider to $150. Revenue increases from $218K to $241K (+$23K), '
+        'sell-through drops only slightly from 100% to 94%, and STH margin stays at 18% (healthy green). '
+        'This game has room to raise prices without hurting attendance or STH value. Now try a cold game like '
+        '"Aug 26 vs Inter Miami" and notice the opposite: raising price drops sell-through sharply because '
+        'demand is more elastic for midweek matches.',
+        s["InsightBox"]
+    ))
+    story.append(Paragraph(
+        "ACTION: Use this view in your weekly pricing review. For each upcoming game, test Balanced and "
+        "Aggressive prices and confirm the STH margin stays green before approving a change.",
+        s["ActionBox"]
+    ))
+
+    story.append(PageBreak())
+
+    # ── PAGE 2: STH Value Dashboard ──────────────────────────────────────
+    story.append(Paragraph("STH Value Dashboard — Season Ticket Holder Resale Tracker", s["SectionHead"]))
+    story.append(Paragraph(
+        "This view answers the most important question for your renewal campaign: can you prove that "
+        "season tickets are worth the upfront commitment? It tracks resale value across every game "
+        "and section tier, giving you the data to back up your pitch.",
+        s["Body"]
+    ))
+
+    story.append(Paragraph("What you see", s["BodyBold"]))
+    story.append(Paragraph(
+        "At the top, three KPI cards summarize the season-level picture: total season resale value "
+        "(the aggregate dollar profit a STH can expect across all 17 games), average resale margin "
+        "percentage, and the percentage of sections where the margin is healthy (10%+). "
+        "A section tier filter lets you drill into specific fan segments — lower bowl midfield STH, "
+        "upper bowl STH, club level STH, etc.",
+        s["Body"]
+    ))
+    story.append(Paragraph(
+        "The bar chart breaks down resale margin by opponent. Each bar represents one home game. "
+        "Tall green bars are high-value games where STH can resell at a significant profit — these are "
+        "your Baja Cup matches, rivalry games, and marquee opponents. Short or red bars are low-demand "
+        "games where STH would break even or lose money. A horizontal red dashed line marks break-even ($0).",
+        s["Body"]
+    ))
+
+    story.append(Paragraph("The STH Value Statement", s["BodyBold"]))
+    story.append(Paragraph(
+        "At the bottom of the view, a pre-written blockquote summarizes the resale value story in "
+        "copy-paste-ready language for your renewal emails and marketing materials. It adapts to the "
+        "selected tier filter. For example: 'Season ticket holders in the lower bowl can expect to "
+        "resell for an average profit of $142 across the 17-game home season — an average margin of "
+        "11% per game.' This statement is generated from actual secondary market data, not a marketing claim.",
+        s["Body"]
+    ))
+
+    story.append(Paragraph("Why this matters for the business", s["BodyBold"]))
+    story.append(Paragraph(
+        "STH renewal is the single largest revenue driver for any MLS club. If you can prove "
+        "that a $1,275 season package has a secondary market value of $1,417, the renewal pitch "
+        "writes itself. The dashboard also shows which games drag down the value — these are the "
+        "games where promotional activation (giveaways, theme nights, bundled experiences) has the "
+        "highest ROI because it lifts the worst-performing bar in the chart.",
+        s["Body"]
+    ))
+
+    story.append(Paragraph(
+        "EXAMPLE: Filter to 'upper_bowl'. The total season resale value shows $48/seat — positive but modest. "
+        "Three games (midweek opponents) show negative margins. These are the games where the club should "
+        "invest in promotional spend to boost demand, because every dollar of demand lift directly improves "
+        "the STH renewal pitch for upper bowl holders.",
+        s["InsightBox"]
+    ))
+    story.append(Paragraph(
+        "ACTION: Before renewal season, export this data by tier. Use the STH Value Statement "
+        "in your renewal emails. Customize messaging per section: premium sections get the resale "
+        "profit story, upper bowl gets the promotional calendar story.",
+        s["ActionBox"]
+    ))
+
+    story.append(PageBreak())
+
+    # ── PAGE 3: Performance Report ───────────────────────────────────────
+    story.append(Paragraph("Performance Report — Backtesting & Model Accuracy", s["SectionHead"]))
+    story.append(Paragraph(
+        "This is your accountability view — the one you show leadership to prove the pricing strategy "
+        "is working. It combines backward-looking analysis (what happened in 2025) with forward-looking "
+        "confidence metrics (how accurate the model is, and how robust it is to error).",
+        s["Body"]
+    ))
+
+    story.append(Paragraph("2025 Backtest KPIs", s["BodyBold"]))
+    story.append(Paragraph(
+        "Three headline metrics at the top: the 2025 average demand index (what percentage of capacity "
+        "was filled on average), the model MAPE (Mean Absolute Percentage Error — how close predictions "
+        "were to actual attendance), and the estimated revenue uplift the Balanced scenario would have "
+        "generated versus the flat pricing that was actually used. For MAPE, anything under 15% is strong "
+        "for live sports. The 8-14% range means predictions are off by 2,800-4,900 seats in a 35,000-seat "
+        "stadium — directionally correct for pricing decisions.",
+        s["Body"]
+    ))
+
+    story.append(Paragraph("2025 Revenue Retrospective", s["BodyBold"]))
+    story.append(Paragraph(
+        "A bar chart shows how much revenue was left on the table for each 2025 home game, calculated by "
+        "comparing what the club charged (face price) against what fans were actually paying on the "
+        "secondary market. The biggest bars are your highest-value games — Club Tijuana (Baja Cup), LAFC "
+        "(rivalry), Inter Miami (marquee). These are the games where data-driven pricing would have captured "
+        "the most upside. Small bars (midweek, low-demand opponents) confirm those games were correctly priced "
+        "or genuinely low-demand — the model would have recommended Conservative pricing on those anyway.",
+        s["Body"]
+    ))
+
+    story.append(Paragraph("Sensitivity Analysis", s["BodyBold"]))
+    story.append(Paragraph(
+        "A table shows what happens to revenue if the demand model is 20% wrong in either direction. "
+        "The key insight: the Balanced scenario generates positive revenue uplift (+3% to +7%) even with "
+        "significant model error, because the guardrails and alpha blending provide a safety net. "
+        "The Aggressive scenario is riskier (can go negative with -20% error), which is why it should "
+        "only be used on games with overwhelming secondary market confirmation.",
+        s["Body"]
+    ))
+
+    story.append(Paragraph("Market Health Distribution", s["BodyBold"]))
+    story.append(Paragraph(
+        "A pie chart shows the breakdown of section-game combinations by market health status: hot (secondary "
+        "premium >35%), warm (20-35%), healthy (10-20%), and cold (<10%). A healthy distribution for a new "
+        "club should show mostly warm and healthy segments, with hot spikes on rivalry and marquee games. "
+        "If the cold segment is growing over time, it signals a broader demand issue that pricing alone "
+        "cannot solve — you would need marketing and promotional intervention.",
+        s["Body"]
+    ))
+
+    story.append(Paragraph(
+        "EXAMPLE: The 2025 retrospective shows ~$207K total revenue left on the table. The Club Tijuana "
+        "match accounts for ~$38K of that — a single game where secondary premiums hit 50%+. "
+        "LAFC is second at ~$29K. These two games alone represent 32% of the total opportunity, "
+        "confirming that aggressive pricing on Baja Cup and rivalry matches has strong historical evidence.",
+        s["InsightBox"]
+    ))
+    story.append(Paragraph(
+        "ACTION: Present this view to the COO quarterly. Lead with the dollar amount left on the table, "
+        "then show the sensitivity table to prove robustness. The message: even if we are wrong, we still "
+        "make more money than flat pricing.",
+        s["ActionBox"]
+    ))
+
+    # Footer
+    story.append(Spacer(1, 12))
+    story.append(make_hr())
+    story.append(Paragraph(
+        "SD FC Pricing Intelligence  |  Questions? Contact VP of Data Analytics & Strategy",
+        s["SmallGray"]
+    ))
+
+    doc.build(story)
+    print(f"Views guide: {path}")
+    return path
+
+
 if __name__ == "__main__":
     build_exec_summary()
     build_user_guide()
+    build_views_guide()
     print("Done.")
