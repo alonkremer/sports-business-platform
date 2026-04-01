@@ -1124,17 +1124,7 @@ def _build_stadium_svg(
     s.addEventListener('mouseleave',function(){{ ttb.setAttribute('visibility','hidden'); }});
     s.addEventListener('click',function(e){{
       e.stopPropagation();
-      var grp = s.getAttribute('data-grp');
-      if(!grp) return;
-      try {{
-        var params = new URLSearchParams(window.parent.location.search);
-        var cur = (params.get('secs')||'').split(',').filter(Boolean);
-        var idx = cur.indexOf(grp);
-        if(idx>=0){{ cur.splice(idx,1); s.classList.remove('selected'); }}
-        else {{ cur.push(grp); s.classList.add('selected'); }}
-        params.set('secs', cur.join(','));
-        window.parent.location.search = params.toString();
-      }} catch(err) {{}}
+      s.classList.toggle('selected');
     }});
   }});
 
@@ -1190,9 +1180,6 @@ def render_seat_map():
         'The Game Impact Score (1-10) summarizes overall demand signals for the selected match.'
         '</div>', unsafe_allow_html=True
     )
-
-    # ── Selected sections from URL query param (toggled by JS on map click) ──
-    selected_sections = [s for s in st.query_params.get("secs", "").split(",") if s]
 
     # ── Scenario (above view mode) ────────────────────────────────────────────
     scenario = st.radio(
@@ -1677,6 +1664,17 @@ def render_seat_map():
             "avg_price":       avg_price,
         }
 
+    # ── Section filter (multiselect — reliable cross-platform) ──────────────
+    _sec_options = sorted(section_data.keys())
+    _sec_labels  = {k: SECTION_METADATA.get(k, {}).get("sections", k) for k in _sec_options}
+    selected_sections = st.multiselect(
+        "Filter sections",
+        options=_sec_options,
+        default=[],
+        format_func=lambda k: _sec_labels.get(k, k),
+        placeholder="Click a section on the map or choose here to filter the table",
+    )
+
     # ── Section table (above map) ─────────────────────────────────────────────
     _render_section_table(
         selected_sections, section_data,
@@ -1810,21 +1808,18 @@ def _render_section_table(
     # Determine which groups to display
     if selected_sections:
         show_grps = [g for g in selected_sections if g in section_data]
-        hint = (f"{len(show_grps)} section{'s' if len(show_grps) != 1 else ''} selected — "
-                "click a section name to deselect, or click another on the map to add")
+        hint = f"{len(show_grps)} section{'s' if len(show_grps) != 1 else ''} selected — use the filter above to change"
     elif highlighted_groups is not None:
         show_grps = sorted(g for g in section_data if g in highlighted_groups)
         hint = f"{len(show_grps)} section{'s' if len(show_grps) != 1 else ''} match active filter"
     else:
         show_grps = sorted(section_data.keys())
-        hint = "Click a section name or on the map to select — multiple selections allowed"
+        hint = "Use the section filter above to narrow the table"
 
     st.caption(hint)
     if not show_grps:
         st.caption("No sections to display.")
         return
-
-    cur_secs = list(selected_sections)
 
     # ── Zoom level controls: −/+ to collapse/expand ──────────────────────
     detail_level = st.session_state.get("tbl_detail", "level")
@@ -1847,14 +1842,6 @@ def _render_section_table(
         st.markdown(f'<span style="color:#9CA3AF;font-size:12px;line-height:38px">{label_map[detail_level]}</span>',
                     unsafe_allow_html=True)
 
-    def _toggle_href(grp: str) -> str:
-        new = list(cur_secs)
-        if grp in new:
-            new.remove(grp)
-        else:
-            new.append(grp)
-        return f"?secs={','.join(new)}" if new else "?"
-
     def _rec_badge(pchg: float) -> str:
         sign = "+" if pchg > 0 else ""
         val  = f"{sign}{pchg:.1f}%"
@@ -1872,14 +1859,11 @@ def _render_section_table(
         row_bg = "background:rgba(96,165,250,0.08)" if is_sel else ""
         if is_header:
             row_bg = "background:rgba(30,40,70,0.5)"
-        link_col = "#60A5FA" if is_sel else ("#E5E7EB" if not is_header else "#93C5FD")
-        link_wt  = "700" if (is_sel or is_header) else "400"
+        name_col = "#60A5FA" if is_sel else ("#E5E7EB" if not is_header else "#93C5FD")
+        name_wt  = "700" if (is_sel or is_header) else "400"
         avail_col = "#10B981" if avail > 0 else "#6B7280"
         pad_l = 12 + indent * 16
-        href = _toggle_href(grp) if grp else "#"
-        name_cell = (f'<a href="{href}" style="color:{link_col};font-weight:{link_wt};'
-                     f'text-decoration:none">{sec_name}</a>') if grp else (
-                     f'<span style="color:{link_col};font-weight:{link_wt}">{sec_name}</span>')
+        name_cell = f'<span style="color:{name_col};font-weight:{name_wt}">{sec_name}</span>'
         resale_col = "#EC4899" if resale > 0 else "#6B7280"
         # Rec price color: green if above face, orange if below
         rec_col = "#10B981" if scen_p >= face_p else "#F59E0B"
