@@ -19,12 +19,18 @@ import json
 from pathlib import Path
 from typing import Optional
 
+import os
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
+
+# ── Bidirectional stadium map component (click → filter) ─────────────────────
+_STADIUM_COMPONENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stadium_component")
+_stadium_map = components.declare_component("stadium_map", path=_STADIUM_COMPONENT_DIR)
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -380,20 +386,6 @@ def render_sidebar():
             label_visibility="collapsed"
         )
         st.divider()
-
-        # Strategic Mode selector
-        st.subheader("Strategic Mode")
-        mode = st.selectbox(
-            "Mode",
-            ["Revenue Optimization", "Fan Acquisition", "Atmosphere (Sellout)"],
-            help=(
-                "Revenue: maximize revenue per seat\n"
-                "Fan Acquisition: cap increases at +10% to fill seats\n"
-                "Atmosphere: prioritize full house over max revenue"
-            )
-        )
-
-        st.divider()
         st.caption(f"API: {API_BASE}")
 
         # API health
@@ -404,7 +396,7 @@ def render_sidebar():
         else:
             st.error("API Offline — using local data")
 
-        return view, mode
+        return view
 
 
 # ── View 1: Season Overview ───────────────────────────────────────────────────
@@ -1122,20 +1114,7 @@ def _build_stadium_svg(
       showTip(s.getAttribute('data-tip'), e);
     }});
     s.addEventListener('mouseleave',function(){{ ttb.setAttribute('visibility','hidden'); }});
-    s.addEventListener('click',function(e){{
-      e.stopPropagation();
-      s.classList.toggle('selected');
-    }});
   }});
-
-  // Pre-select sections from URL param
-  var initSecs = '{",".join(selected_groups or [])}';
-  if(initSecs) {{
-    initSecs.split(',').filter(Boolean).forEach(function(gid){{
-      var el=svg.querySelector('[data-grp="'+gid+'"]');
-      if(el) el.classList.add('selected');
-    }});
-  }}
 
   updateMinimap();
 }})();
@@ -1664,16 +1643,19 @@ def render_seat_map():
             "avg_price":       avg_price,
         }
 
-    # ── Section filter (multiselect — reliable cross-platform) ──────────────
-    _sec_options = sorted(section_data.keys())
-    _sec_labels  = {k: SECTION_METADATA.get(k, {}).get("sections", k) for k in _sec_options}
-    selected_sections = st.multiselect(
-        "Filter sections",
-        options=_sec_options,
-        default=[],
-        format_func=lambda k: _sec_labels.get(k, k),
-        placeholder="Click a section on the map or choose here to filter the table",
-    )
+    # ── Selected sections (from map clicks, persisted in session state) ──────
+    if "map_secs" not in st.session_state:
+        st.session_state.map_secs = []
+    selected_sections = list(st.session_state.map_secs)
+    if selected_sections:
+        _sel_labels = [SECTION_METADATA.get(s, {}).get("sections", s) for s in selected_sections]
+        _sel_col1, _sel_col2 = st.columns([4, 1])
+        with _sel_col1:
+            st.caption(f"Selected: {', '.join(_sel_labels)} — click on the map to add/remove")
+        with _sel_col2:
+            if st.button("Clear selection", key="clear_map_secs"):
+                st.session_state.map_secs = []
+                st.rerun()
 
     # ── Section table (above map) ─────────────────────────────────────────────
     _render_section_table(
@@ -1709,87 +1691,89 @@ def render_seat_map():
 </div>"""
     st.markdown(legend_html, unsafe_allow_html=True)
 
-    # ── Map + Info panel (side by side when section selected) ─────────────────
-    _has_selection = bool(selected_sections)
-    if _has_selection:
-        _map_col, _info_col = st.columns([3, 1])
-    else:
-        _map_col = st.container()
-        _info_col = None
+    # ── Map (bidirectional component — click sections to filter table) ────────
+    svg_html = _build_stadium_svg(
+        section_data, scenario, selected_game_label,
+        highlighted_groups=highlighted_groups,
+        selected_groups=selected_sections,
+    )
+    _map_click_result = _stadium_map(
+        svg_html=svg_html,
+        selected=selected_sections,
+        key="stadium_map",
+        default=[],
+    )
+    # Sync map clicks → session state → rerun so table above updates
+    if isinstance(_map_click_result, list) and _map_click_result != selected_sections:
+        st.session_state.map_secs = list(_map_click_result)
+        st.rerun()
 
-    with _map_col:
-        svg_html = _build_stadium_svg(
-            section_data, scenario, selected_game_label,
-            highlighted_groups=highlighted_groups,
-            selected_groups=selected_sections,
-        )
-        st.components.v1.html(svg_html, height=1180, scrolling=False)
+    _has_selection = bool(selected_sections)
 
     # ── Info panel: selected section details ──────────────────────────────────
-    if _has_selection and _info_col is not None:
-        with _info_col:
-            for grp in selected_sections:
-                d    = section_data.get(grp, {})
-                meta = SECTION_METADATA.get(grp, {})
-                if not d:
-                    continue
-                pchg     = d.get("price_change_pct", 0)
-                face     = d.get("face_price", 0)
-                scen_p   = d.get("scenario_price", face)
-                cap      = d.get("capacity", 0)
-                sth      = d.get("sth_sold", 0)
-                sg       = d.get("sg_sold", 0)
-                avail    = d.get("available", 0)
-                t_rev    = d.get("ticket_rev", 0)
-                p_rev    = d.get("potential_rev", 0)
-                avg_p    = d.get("avg_price", face)
-                health   = d.get("market_health", "healthy")
-                sign     = "+" if pchg > 0 else ""
-                if pchg > 15:   rec_txt, rec_col = "Raise price",       "#60A5FA"
-                elif pchg > 5:  rec_txt, rec_col = "Slight increase",   "#93C5FD"
-                elif pchg < -15:rec_txt, rec_col = "Lower price",       "#F87171"
-                elif pchg < -5: rec_txt, rec_col = "Slight decrease",   "#FCA5A5"
-                else:           rec_txt, rec_col = "Hold price",        "#9CA3AF"
-                health_icon = {"hot": "🔴", "warm": "🟠", "healthy": "🟢", "cold": "🔵"}.get(health, "⚪")
-                st.markdown(
-                    f"""<div style="background:#111827;border:1px solid #1f2937;border-radius:10px;
-                        padding:14px;margin-bottom:10px;font-family:Arial">
-                      <div style="font-size:15px;font-weight:700;color:#E5E7EB;margin-bottom:2px">
-                        Sections {meta.get('sections', grp)}</div>
-                      <div style="font-size:11px;color:#6B7280;margin-bottom:10px">
-                        {meta.get('level','')} · {meta.get('seat_type','')} · {meta.get('view_angle','')}</div>
-                      <div style="font-size:22px;font-weight:700;color:{rec_col};margin-bottom:2px">
-                        {sign}{pchg:.1f}%</div>
-                      <div style="font-size:12px;color:{rec_col};margin-bottom:10px">{rec_txt}</div>
-                      <div style="font-size:11px;color:#6B7280;margin-bottom:4px">
-                        Current face price</div>
-                      <div style="font-size:14px;color:#D1D5DB;margin-bottom:8px">${face:,.0f}</div>
-                      <div style="font-size:11px;color:#6B7280;margin-bottom:4px">
-                        Recommended ({scenario.title()})</div>
-                      <div style="font-size:14px;color:{rec_col};font-weight:600;margin-bottom:10px">
-                        ${scen_p:,.0f}</div>
-                      <hr style="border:none;border-top:1px solid #1f2937;margin:8px 0"/>
-                      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
-                        <div style="color:#6B7280">Capacity</div>
-                        <div style="color:#D1D5DB;text-align:right">{cap:,}</div>
-                        <div style="color:#6B7280">ST Sold</div>
-                        <div style="color:#D1D5DB;text-align:right">{sth:,}</div>
-                        <div style="color:#6B7280">SG Sold</div>
-                        <div style="color:#D1D5DB;text-align:right">{sg:,}</div>
-                        <div style="color:#6B7280">Available</div>
-                        <div style="color:{"#10B981" if avail>0 else "#6B7280"};text-align:right;font-weight:600">{avail:,}</div>
-                        <div style="color:#6B7280">Avg Price</div>
-                        <div style="color:#D1D5DB;text-align:right">${avg_p:,.0f}</div>
-                        <div style="color:#6B7280">Ticket Rev</div>
-                        <div style="color:#D1D5DB;text-align:right">${t_rev:,.0f}</div>
-                        <div style="color:#6B7280">Potential Rev</div>
-                        <div style="color:#10B981;text-align:right;font-weight:600">${p_rev:,.0f}</div>
-                        <div style="color:#6B7280">Market</div>
-                        <div style="color:#D1D5DB;text-align:right">{health_icon} {health.title()}</div>
-                      </div>
-                    </div>""",
-                    unsafe_allow_html=True,
-                )
+    if _has_selection:
+        for grp in selected_sections:
+            d    = section_data.get(grp, {})
+            meta = SECTION_METADATA.get(grp, {})
+            if not d:
+                continue
+            pchg     = d.get("price_change_pct", 0)
+            face     = d.get("face_price", 0)
+            scen_p   = d.get("scenario_price", face)
+            cap      = d.get("capacity", 0)
+            sth      = d.get("sth_sold", 0)
+            sg       = d.get("sg_sold", 0)
+            avail    = d.get("available", 0)
+            t_rev    = d.get("ticket_rev", 0)
+            p_rev    = d.get("potential_rev", 0)
+            avg_p    = d.get("avg_price", face)
+            health   = d.get("market_health", "healthy")
+            sign     = "+" if pchg > 0 else ""
+            if pchg > 15:   rec_txt, rec_col = "Raise price",       "#60A5FA"
+            elif pchg > 5:  rec_txt, rec_col = "Slight increase",   "#93C5FD"
+            elif pchg < -15:rec_txt, rec_col = "Lower price",       "#F87171"
+            elif pchg < -5: rec_txt, rec_col = "Slight decrease",   "#FCA5A5"
+            else:           rec_txt, rec_col = "Hold price",        "#9CA3AF"
+            health_icon = {"hot": "🔴", "warm": "🟠", "healthy": "🟢", "cold": "🔵"}.get(health, "⚪")
+            st.markdown(
+                f"""<div style="background:#111827;border:1px solid #1f2937;border-radius:10px;
+                    padding:14px;margin-bottom:10px;font-family:Arial">
+                  <div style="font-size:15px;font-weight:700;color:#E5E7EB;margin-bottom:2px">
+                    Sections {meta.get('sections', grp)}</div>
+                  <div style="font-size:11px;color:#6B7280;margin-bottom:10px">
+                    {meta.get('level','')} · {meta.get('seat_type','')} · {meta.get('view_angle','')}</div>
+                  <div style="font-size:22px;font-weight:700;color:{rec_col};margin-bottom:2px">
+                    {sign}{pchg:.1f}%</div>
+                  <div style="font-size:12px;color:{rec_col};margin-bottom:10px">{rec_txt}</div>
+                  <div style="font-size:11px;color:#6B7280;margin-bottom:4px">
+                    Current face price</div>
+                  <div style="font-size:14px;color:#D1D5DB;margin-bottom:8px">${face:,.0f}</div>
+                  <div style="font-size:11px;color:#6B7280;margin-bottom:4px">
+                    Recommended ({scenario.title()})</div>
+                  <div style="font-size:14px;color:{rec_col};font-weight:600;margin-bottom:10px">
+                    ${scen_p:,.0f}</div>
+                  <hr style="border:none;border-top:1px solid #1f2937;margin:8px 0"/>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
+                    <div style="color:#6B7280">Capacity</div>
+                    <div style="color:#D1D5DB;text-align:right">{cap:,}</div>
+                    <div style="color:#6B7280">ST Sold</div>
+                    <div style="color:#D1D5DB;text-align:right">{sth:,}</div>
+                    <div style="color:#6B7280">SG Sold</div>
+                    <div style="color:#D1D5DB;text-align:right">{sg:,}</div>
+                    <div style="color:#6B7280">Available</div>
+                    <div style="color:{"#10B981" if avail>0 else "#6B7280"};text-align:right;font-weight:600">{avail:,}</div>
+                    <div style="color:#6B7280">Avg Price</div>
+                    <div style="color:#D1D5DB;text-align:right">${avg_p:,.0f}</div>
+                    <div style="color:#6B7280">Ticket Rev</div>
+                    <div style="color:#D1D5DB;text-align:right">${t_rev:,.0f}</div>
+                    <div style="color:#6B7280">Potential Rev</div>
+                    <div style="color:#10B981;text-align:right;font-weight:600">${p_rev:,.0f}</div>
+                    <div style="color:#6B7280">Market</div>
+                    <div style="color:#D1D5DB;text-align:right">{health_icon} {health.title()}</div>
+                  </div>
+                </div>""",
+                unsafe_allow_html=True,
+            )
 
 
 def _render_section_table(
@@ -2443,7 +2427,7 @@ def render_performance_report():
 # ── Main app ──────────────────────────────────────────────────────────────────
 
 def main():
-    view, mode = render_sidebar()
+    view = render_sidebar()
 
     # Load common data
     games_df = get_games_data(2026)
