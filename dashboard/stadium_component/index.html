@@ -1,31 +1,57 @@
 <!DOCTYPE html>
 <html>
 <head>
-<script src="./streamlit-component-lib.js"></script>
 <style>
-  html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
+  html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
 </style>
 </head>
 <body>
-<div id="map-container"></div>
+<div id="container"></div>
 <script>
 (function() {
-  let selectedSections = [];
-  let lastSvgHash = 0;
+  var selectedSections = [];
+  var lastHash = 0;
 
-  // Simple string hash to avoid re-rendering SVG when only selection changed
-  function hashStr(s) {
-    let h = 0;
-    for (let i = 0; i < s.length; i++) {
+  // ── Streamlit postMessage protocol (no external lib needed) ───────────────
+  function sendToStreamlit(type, data) {
+    var msg = Object.assign({ isStreamlitMessage: true, type: type }, data);
+    window.parent.postMessage(msg, "*");
+  }
+
+  function sendValue(val) {
+    sendToStreamlit("streamlit:setComponentValue", { value: val, dataType: "json" });
+  }
+
+  function sendHeight(h) {
+    sendToStreamlit("streamlit:setFrameHeight", { height: h });
+  }
+
+  // ── Simple hash to avoid re-rendering SVG if nothing changed ──────────────
+  function hash(s) {
+    var h = 0;
+    var len = Math.min(s.length, 8000);
+    for (var i = 0; i < len; i++) {
       h = ((h << 5) - h) + s.charCodeAt(i);
       h |= 0;
     }
     return h;
   }
 
+  // ── Apply/remove yellow highlight borders on sections ─────────────────────
+  function applyHighlights() {
+    document.querySelectorAll('[data-grp].selected').forEach(function(el) {
+      el.classList.remove('selected');
+    });
+    selectedSections.forEach(function(grp) {
+      var el = document.querySelector('[data-grp="' + grp + '"]');
+      if (el) el.classList.add('selected');
+    });
+  }
+
+  // ── Attach click handlers to every section group element ──────────────────
   function setupClickHandlers() {
     document.querySelectorAll('[data-grp]').forEach(function(s) {
-      if (s.dataset.stReady) return;
+      if (s.dataset.stReady) return;   // avoid double-attaching
       s.dataset.stReady = '1';
       s.addEventListener('click', function(e) {
         e.stopPropagation();
@@ -39,60 +65,56 @@
           selectedSections.push(grp);
           this.classList.add('selected');
         }
-        Streamlit.setComponentValue(selectedSections.slice());
+        sendValue(selectedSections.slice());  // send updated list to Python
       });
     });
   }
 
-  function applySelectionHighlights() {
-    // Clear all selections first
-    document.querySelectorAll('[data-grp].selected').forEach(function(el) {
-      el.classList.remove('selected');
-    });
-    // Apply current selections
-    selectedSections.forEach(function(grp) {
-      var el = document.querySelector('[data-grp="' + grp + '"]');
-      if (el) el.classList.add('selected');
+  // ── Inject HTML and re-execute any inline <script> tags ───────────────────
+  function injectSvg(svgHtml) {
+    var container = document.getElementById('container');
+    container.innerHTML = svgHtml;
+    // innerHTML does not execute scripts — replace each one with a new node
+    container.querySelectorAll('script').forEach(function(oldScript) {
+      var newScript = document.createElement('script');
+      newScript.textContent = oldScript.textContent;
+      oldScript.parentNode.replaceChild(newScript, oldScript);
     });
   }
 
-  function onRender(event) {
-    var args = event.detail.args;
-    var svgHtml = args.svg_html || '';
-    var initSelected = args.selected || [];
-    selectedSections = initSelected.slice();
+  // ── Handle render message from Streamlit ─────────────────────────────────
+  function onRender(data) {
+    var args      = data.args || {};
+    var svgHtml   = args.svg_html || '';
+    selectedSections = (args.selected || []).slice();
 
-    var newHash = hashStr(svgHtml);
-    if (newHash !== lastSvgHash) {
-      lastSvgHash = newHash;
-      var container = document.getElementById('map-container');
-      container.innerHTML = svgHtml;
-
-      // Re-execute inline scripts (innerHTML doesn't execute them)
-      var scripts = container.querySelectorAll('script');
-      scripts.forEach(function(oldScript) {
-        var newScript = document.createElement('script');
-        newScript.textContent = oldScript.textContent;
-        oldScript.parentNode.replaceChild(newScript, oldScript);
-      });
-
-      // Setup click handlers after scripts execute
+    var newHash = hash(svgHtml);
+    if (newHash !== lastHash) {
+      lastHash = newHash;
+      injectSvg(svgHtml);
+      // Give SVG scripts time to execute, then attach our handlers on top
       setTimeout(function() {
         setupClickHandlers();
-        applySelectionHighlights();
-        Streamlit.setFrameHeight(document.getElementById('map-container').scrollHeight || 1200);
-      }, 80);
+        applyHighlights();
+        var h = document.getElementById('container').scrollHeight || 1200;
+        sendHeight(h);
+      }, 100);
     } else {
-      // SVG didn't change — just update visual highlights
-      applySelectionHighlights();
+      // SVG unchanged — only update visual highlights (section toggle)
+      applyHighlights();
     }
-
-    Streamlit.setFrameHeight(document.getElementById('map-container').scrollHeight || 1200);
   }
 
-  Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
-  Streamlit.setComponentReady();
-  Streamlit.setFrameHeight(1200);
+  // ── Listen for Streamlit render events ────────────────────────────────────
+  window.addEventListener("message", function(event) {
+    if (event.data && event.data.type === "streamlit:render") {
+      onRender(event.data);
+    }
+  });
+
+  // ── Signal to Streamlit that the component is ready ───────────────────────
+  sendToStreamlit("streamlit:componentReady", { apiVersion: 1 });
+  sendHeight(1200);
 })();
 </script>
 </body>
