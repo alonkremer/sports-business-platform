@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="./streamlit-component-lib.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
+</style>
+</head>
+<body>
+<div id="map-container"></div>
+<script>
+(function() {
+  let selectedSections = [];
+  let lastSvgHash = 0;
+
+  // Simple string hash to avoid re-rendering SVG when only selection changed
+  function hashStr(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) {
+      h = ((h << 5) - h) + s.charCodeAt(i);
+      h |= 0;
+    }
+    return h;
+  }
+
+  function setupClickHandlers() {
+    document.querySelectorAll('[data-grp]').forEach(function(s) {
+      if (s.dataset.stReady) return;
+      s.dataset.stReady = '1';
+      s.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var grp = this.getAttribute('data-grp');
+        if (!grp) return;
+        var idx = selectedSections.indexOf(grp);
+        if (idx >= 0) {
+          selectedSections.splice(idx, 1);
+          this.classList.remove('selected');
+        } else {
+          selectedSections.push(grp);
+          this.classList.add('selected');
+        }
+        Streamlit.setComponentValue(selectedSections.slice());
+      });
+    });
+  }
+
+  function applySelectionHighlights() {
+    // Clear all selections first
+    document.querySelectorAll('[data-grp].selected').forEach(function(el) {
+      el.classList.remove('selected');
+    });
+    // Apply current selections
+    selectedSections.forEach(function(grp) {
+      var el = document.querySelector('[data-grp="' + grp + '"]');
+      if (el) el.classList.add('selected');
+    });
+  }
+
+  function onRender(event) {
+    var args = event.detail.args;
+    var svgHtml = args.svg_html || '';
+    var initSelected = args.selected || [];
+    selectedSections = initSelected.slice();
+
+    var newHash = hashStr(svgHtml);
+    if (newHash !== lastSvgHash) {
+      lastSvgHash = newHash;
+      var container = document.getElementById('map-container');
+      container.innerHTML = svgHtml;
+
+      // Re-execute inline scripts (innerHTML doesn't execute them)
+      var scripts = container.querySelectorAll('script');
+      scripts.forEach(function(oldScript) {
+        var newScript = document.createElement('script');
+        newScript.textContent = oldScript.textContent;
+        oldScript.parentNode.replaceChild(newScript, oldScript);
+      });
+
+      // Setup click handlers after scripts execute
+      setTimeout(function() {
+        setupClickHandlers();
+        applySelectionHighlights();
+        Streamlit.setFrameHeight(document.getElementById('map-container').scrollHeight || 1200);
+      }, 80);
+    } else {
+      // SVG didn't change — just update visual highlights
+      applySelectionHighlights();
+    }
+
+    Streamlit.setFrameHeight(document.getElementById('map-container').scrollHeight || 1200);
+  }
+
+  Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
+  Streamlit.setComponentReady();
+  Streamlit.setFrameHeight(1200);
+})();
+</script>
+</body>
+</html>
