@@ -140,7 +140,7 @@ def build_exec_summary():
     story.append(make_kpi_row([
         ("28,064", "2025 Avg Attendance"),
         ("$796K", "2025 Revenue Left on Table"),
-        ("+11.4%", "Revenue Uplift (Balanced)"),
+        ("+5.3%", "Revenue Uplift (Balanced)"),
         ("$204", "STH Net Resale Value/Seat"),
     ], s))
     story.append(Spacer(1, 4))
@@ -164,7 +164,7 @@ def build_exec_summary():
         "grounded in what fans are actually willing to pay. It combines demand forecasting (XGBoost), "
         "causal price elasticity (Double Machine Learning), and airline-style yield optimization (EMSR-b) "
         "calibrated against verified 2025 attendance data. Backtesting shows the Balanced scenario would have "
-        "generated +11.4% revenue uplift versus the flat pricing used in 2025.",
+        "generated +5.3% revenue uplift versus the flat pricing used in 2025.",
         s["Body"]
     ))
     story.append(Paragraph(
@@ -395,7 +395,7 @@ def build_user_guide():
     ))
     story.append(Paragraph(
         'ACTION: Use the retrospective to justify the pricing strategy. "$796K left on the table in Year 1" is the headline. '
-        'The sensitivity table proves AI pricing beats flat even when the forecast is wrong.',
+        'The sensitivity table proves AI pricing beats flat even if the elasticity estimate is 2× wrong.',
         s["ActionBox"]
     ))
 
@@ -573,7 +573,7 @@ def build_views_guide():
         "Three headline metrics at the top: the 2025 average demand index (80% — what percentage of capacity "
         "was filled on average), total revenue left on the table ($796K — the gap between what the club "
         "charged and what the secondary market was willing to pay), and the revenue uplift the Balanced scenario "
-        "would have generated (+11.4% versus the flat pricing that was actually used). These are computed "
+        "would have generated (+5.3% versus the flat pricing that was actually used). These are computed "
         "from actual 2025 data, not estimates.",
         s["Body"]
     ))
@@ -589,12 +589,13 @@ def build_views_guide():
         s["Body"]
     ))
 
-    story.append(Paragraph("Sensitivity Analysis", s["BodyBold"]))
+    story.append(Paragraph("Sensitivity Analysis — What If the Model Is Wrong?", s["BodyBold"]))
     story.append(Paragraph(
-        "A table compares AI pricing vs flat pricing at the same demand level, even when the demand forecast "
-        "is 20% wrong. The key insight: the Balanced scenario generates +11.4% uplift vs flat pricing "
-        "regardless of whether demand is higher or lower than forecast. This is because the price adjustments "
-        "(not demand forecasts) drive the uplift. The Conservative scenario is safer (+5.7%), Aggressive bolder (+17.1%).",
+        "The stress test asks: what if actual demand elasticity is steeper than the model estimated? "
+        "Even if fans are 50% more price-sensitive than modeled, Balanced still delivers +2.6% uplift. "
+        "The breakeven point is ~2× elasticity error — the model would need to be 100% wrong about "
+        "price sensitivity before flat pricing beats AI pricing. Conservative (+2.7% at model correct) "
+        "is the safest, Aggressive (+7.8%) the boldest. All scenarios stay positive until 2× error.",
         s["Body"]
     ))
 
@@ -618,7 +619,7 @@ def build_views_guide():
     ))
     story.append(Paragraph(
         "ACTION: Present this view to the COO quarterly. Lead with '$796K left on the table in Year 1', "
-        "then show the sensitivity table: AI pricing beats flat even when the model is 20% wrong. "
+        "then show the sensitivity table: AI pricing beats flat even if elasticity is 2× steeper than estimated. "
         "The message: this is not a gamble, it is a measurable improvement.",
         s["ActionBox"]
     ))
